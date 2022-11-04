@@ -6,80 +6,6 @@ import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-//trait BinaryRelation[It[_] <: Iterable[_], R, C] {
-//
-//  def apply(x: R, y: C): Boolean = contains(x,y)
-//
-////  def pairs(): It[(R,C)]
-//
-////  def rows(): It[R]
-////  def columns(): It[C]
-//
-//  def row(x: R): It[C]
-//  def col(y: C): It[R]
-//
-//  def add(x: R, y: C): Unit
-//  def remove(x: R, y: C): Unit
-//  def contains(x: R, y: C): Boolean
-//
-//}
-
-//class HashRelation[R, C] extends BinaryRelation[mutable.Set, R, C] {
-//
-//  var _pairs = mutable.Set[(R,C)]()
-//
-////  def pairs(): mutable.Set[(R,C)] = _pairs
-//
-//  def rows(): mutable.Set[R] = { _pairs.map({ case (x, _) => x }) }
-//
-//  def columns(): mutable.Set[C] = { _pairs.map({ case (_, y) => y }) }
-//
-//  def row(x: R): mutable.Set[C] = { _pairs.collect({ case (xx, y) if xx equals x => y }) }
-//
-//  def col(y: C): mutable.Set[R] = { _pairs.collect({ case (x, yy) if yy equals y => x }) }
-//
-//  def add(x: R, y: C): Unit = { _pairs += (x,y) }
-//
-//  def remove(x: R, y: C): Unit = { _pairs -= (x,y) }
-//
-//  def contains(x: R, y: C): Boolean = { _pairs(x,y) }
-//
-//}
-
-//class ConcurrentRelation[R, C] extends BinaryRelation[Set, R, C] {
-//
-//  private val _pairs = collection.concurrent.TrieMap[(R,C),Unit]()
-//  private def pairs(): Set[(R,C)] = _pairs.keySet.toSet
-//
-////  def rows(): Set[R] = { pairs().map({ case (x, _) => x }) }
-////  def columns(): Set[C] = { pairs().map({ case (_, y) => y }) }
-//
-//  def row(x: R): Set[C] = { pairs().collect({ case (xx, y) if xx equals x => y }) }
-//
-//  def col(y: C): Set[R] = { pairs().collect({ case (x, yy) if yy equals y => x }) }
-//
-//  def add(x: R, y: C): Unit = { _pairs.put((x,y), ()) }
-//
-//  def remove(x: R, y: C): Unit = { _pairs.remove((x,y)) }
-//
-//  def contains(x: R, y: C): Boolean = { _pairs.contains((x,y)) }
-//
-//}
-
-//class ConcurrentRelationExtendingSetInclusion[T] extends ConcurrentRelation[collection.Set[T], T] {
-//  override def add(xs: collection.Set[T], y: T): Unit = if (!xs(y)) super.add(xs, y)
-//
-//  override def remove(xs: collection.Set[T], y: T): Unit =
-//    if (xs(y)) throw new IllegalArgumentException()
-//    else super.remove(xs, y)
-//
-//  override def contains(xs: collection.Set[T], y: T): Boolean = xs(y) || super.contains(xs, y)
-//
-//  override def row(xs: collection.Set[T]): Set[T] = super.row(xs) ++ xs
-//
-//  override def col(y: T): Set[collection.Set[T]] = ???
-//}
-
 class BitSetToIntRelation {
 
   private val bits = collection.concurrent.TrieMap[BitSet, mutable.BitSet]()
@@ -107,22 +33,6 @@ class BitSetToIntRelation {
   def rows = bits.keySet
 
 }
-
-//class ConcurrentReflexiveRelation[T] extends ConcurrentRelation[T, T] {
-//
-//  override def add(x: T, y: T): Unit = if (!(x equals y)) super.add(x, y)
-//
-//  override def remove(x: T, y: T): Unit =
-//    if (x equals y) throw new IllegalAccessException()
-//    else super.remove(x, y)
-//
-//  override def contains(x: T, y: T): Boolean = (x equals y) || super.contains(x, y)
-//
-//  override def row(x: T): Set[T] = super.row(x) + x
-//
-//  override def col(y: T): Set[T] = super.col(y) + y
-//
-//}
 
 class ReflexiveBitRelation[T] extends BitRelation[T, T] {
 

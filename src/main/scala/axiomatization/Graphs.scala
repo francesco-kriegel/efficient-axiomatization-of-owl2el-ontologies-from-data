@@ -8,87 +8,32 @@ import scala.collection.{IterableOps, StrictOptimizedIterableOps, mutable}
 import scala.collection.mutable.ListBuffer
 import scala.jdk.StreamConverters.*
 
-//trait Graph[C[_] <: Iterable[_] with IterableOps[_, C, C[_]] with StrictOptimizedIterableOps[_, C, C[_]], N, L, R] {
-trait Graph[C[_] <: Iterable[_], N, L, R] {
+trait Graph[N, L, R] {
 
-  def nodes: C[N]
-  def labels(node: N): C[L]
+  def nodes(): collection.Set[N]
+  def labels(): collection.Seq[L]
+  def relations(): collection.Seq[R]
 
-  def successors(node: N): C[(R, N)]
-  def predecessors(node: N): C[(R, N)]
+  def labels(node: N): collection.Set[L]
 
-  def successorRelations(node: N): C[R]
-  def predecessorRelations(node: N): C[R]
+//  def successors(node: N): collection.Set[(R, N)]
+  def predecessors(node: N): collection.Set[(R, N)]
 
-  def successorsForRelation(node: N, relation: R): C[N]
-  def predecessorsForRelation(node: N, relation: R): C[N]
+  def successorRelations(node: N): collection.Set[R]
+//  def predecessorRelations(node: N): collection.Set[R]
 
-//  def successorRelations(node: N): C[R] = successors(node).map({ case (r: R, _) => r })
-//  def predecessorRelations(node: N): C[R] = predecessors(node).map({ case (r: R, _) => r })
-//
-//  def successorsForRelation(node: N, relation: R): C[N] = successors(node).collect({ case (property, target) if property equals relation => target })
-//  def predecessorsForRelation(node: N, relation: R): C[N] = predecessors(node).collect({ case (property, source) if property equals relation => source })
+  def successorsForRelation(node: N, relation: R): collection.Set[N]
+  def predecessorsForRelation(node: N, relation: R): collection.Set[N]
 
 }
 
-class ListGraph[N, L, R](val initNodes: N*) extends Graph[mutable.ListBuffer, N, L, R] {
-  val _nodes = mutable.ListBuffer[N]()
-  val _labels = new mutable.HashMap[N, mutable.ListBuffer[L]]
-  val _successors = new mutable.HashMap[N, mutable.ListBuffer[(R, N)]]
-  val _predecessors = new mutable.HashMap[N, mutable.ListBuffer[(R, N)]]
-
-  def nodes: mutable.ListBuffer[N] =
-    _nodes
-  def labels(node: N): mutable.ListBuffer[L] =
-    _labels.getOrElse(node, mutable.ListBuffer.empty)
-
-  def successors(node: N): mutable.ListBuffer[(R, N)] =
-    _successors.getOrElse(node, mutable.ListBuffer.empty)
-  def predecessors(node: N): mutable.ListBuffer[(R, N)] =
-    _predecessors.getOrElse(node, mutable.ListBuffer.empty)
-
-  def successorRelations(node: N): mutable.ListBuffer[R] =
-    successors(node).map({ case (r, _) => r })
-  def predecessorRelations(node: N): mutable.ListBuffer[R] =
-    predecessors(node).map({ case (r, _) => r })
-
-  def successorsForRelation(node: N, relation: R): mutable.ListBuffer[N] =
-    successors(node).collect({ case (property, target) if property equals relation => target })
-  def predecessorsForRelation(node: N, relation: R): mutable.ListBuffer[N] =
-    predecessors(node).collect({ case (property,source) if property equals relation => source })
-
-  _nodes.addAll(initNodes)
-
-  def addNode(node: N): Unit = {
-    _nodes.addOne(node)
-  }
-
-  def addLabel(node: N, label: L): Unit = {
-    _labels.getOrElseUpdate(node, { mutable.ListBuffer[L]() }).addOne(label)
-  }
-
-  def addLabels(node: N, labels: IterableOnce[L]): Unit = {
-    _labels.getOrElseUpdate(node, { mutable.ListBuffer[L]() }).addAll(labels)
-  }
-
-  def addEdge(source: N, relation: R, target: N): Unit = {
-    _successors.getOrElseUpdate(source, { mutable.ListBuffer[(R, N)]() }).addOne(relation, target)
-    _predecessors.getOrElseUpdate(target, { mutable.ListBuffer[(R, N)]() }).addOne(relation, source)
-  }
-
-  def clear(): Unit = {
-    _nodes.clear()
-    _labels.clear()
-    _successors.clear()
-    _predecessors.clear()
-  }
-
-}
-
-class HashGraph[N, L, R](val initNodes: N*) { //extends Graph[mutable.HashSet, N, L, R] {
+class HashGraph[N, L, R](val initNodes: N*) extends Graph[N, L, R] {
 
   val _nodes = mutable.HashSet[N]()
-  val _labels = new mutable.HashMap[N, mutable.HashSet[L]]
+  val _labels = mutable.ArrayBuffer[L]()
+  val _relations = mutable.ArrayBuffer[R]()
+
+  val _labelsByNode = new mutable.HashMap[N, mutable.HashSet[L]]
 
   val _successorRelations = new mutable.HashMap[N, mutable.HashSet[R]]
 //  val _predecessorRelations = new mutable.HashMap[N, mutable.HashSet[R]]
@@ -99,10 +44,15 @@ class HashGraph[N, L, R](val initNodes: N*) { //extends Graph[mutable.HashSet, N
 //  val _successors = new mutable.HashMap[N, mutable.HashSet[(R, N)]]
   val _predecessors = new mutable.HashMap[N, mutable.HashSet[(R, N)]]
 
-  def nodes: mutable.HashSet[N] =
+  def nodes(): mutable.HashSet[N] =
     _nodes
+  def labels(): mutable.ArrayBuffer[L] =
+    _labels
+  def relations(): mutable.ArrayBuffer[R] =
+    _relations
+
   def labels(node: N): mutable.HashSet[L] =
-    _labels.getOrElse(node, mutable.HashSet.empty)
+    _labelsByNode.getOrElse(node, mutable.HashSet.empty)
 
   def successorRelations(node: N): mutable.HashSet[R] =
     _successorRelations.getOrElse(node, mutable.HashSet.empty)
@@ -126,11 +76,11 @@ class HashGraph[N, L, R](val initNodes: N*) { //extends Graph[mutable.HashSet, N
   }
 
   def addLabel(node: N, label: L): Unit = {
-    _labels.getOrElseUpdate(node, { mutable.HashSet[L]() }).addOne(label)
+    _labelsByNode.getOrElseUpdate(node, { mutable.HashSet[L]() }).addOne(label)
   }
 
   def addLabels(node: N, labels: IterableOnce[L]): Unit = {
-    _labels.getOrElseUpdate(node, { mutable.HashSet[L]() }).addAll(labels)
+    _labelsByNode.getOrElseUpdate(node, { mutable.HashSet[L]() }).addAll(labels)
   }
 
   def addEdge(source: N, relation: R, target: N): Unit = {
@@ -145,6 +95,8 @@ class HashGraph[N, L, R](val initNodes: N*) { //extends Graph[mutable.HashSet, N
   def clear(): Unit = {
     _nodes.clear()
     _labels.clear()
+    _relations.clear()
+    _labelsByNode.clear()
     _successorRelations.clear()
 //    _predecessorRelations.clear()
     _successorsByRelation.clear()
@@ -161,6 +113,10 @@ object HashGraph {
     val graph = HashGraph[OWLIndividual, OWLClass, OWLObjectProperty]()
     (ontology.individualsInSignature().toScala(LazyList) concat ontology.anonymousIndividuals().toScala(LazyList))
       .foreach(graph.addNode(_))
+    ontology.classesInSignature().toScala(LazyList).filterNot(_ equals OWLThing).filterNot(_ equals OWLNothing)
+      .foreach(graph.labels().addOne(_))
+    ontology.objectPropertiesInSignature().toScala(LazyList)
+      .foreach(graph.relations().addOne(_))
     ontology.axioms().toScala(LazyList)
       .foreach({
         case ClassAssertion(_, c @ Class(_), x) if !(c equals OWLNothing) && !(c equals OWLThing) =>
@@ -178,7 +134,10 @@ object HashGraph {
 class BitGraph[L, R](val initNodes: Int*) { //extends Graph[mutable.HashSet, Int, L, R] {
 
   val _nodes = mutable.BitSet()
-  val _labels = new mutable.HashMap[Int, mutable.HashSet[L]]
+  val _labels = mutable.ArrayBuffer[L]()
+  val _relations = mutable.ArrayBuffer[R]()
+
+  val _labelsByNode = new mutable.HashMap[Int, mutable.HashSet[L]]
 
   val _successorRelations = new mutable.HashMap[Int, mutable.HashSet[R]]
   //  val _predecessorRelations = new mutable.HashMap[Int, mutable.HashSet[R]]
@@ -189,10 +148,17 @@ class BitGraph[L, R](val initNodes: Int*) { //extends Graph[mutable.HashSet, Int
   //  val _successors = new mutable.HashMap[Int, mutable.HashSet[(R, Int)]]
   val _predecessors = new mutable.HashMap[Int, mutable.HashSet[(R, Int)]]
 
-  def nodes: mutable.BitSet =
+  def nodes(): mutable.BitSet =
     _nodes
+
+  def labels(): mutable.ArrayBuffer[L] =
+    _labels
+
+  def relations(): mutable.ArrayBuffer[R] =
+    _relations
+
   def labels(node: Int): mutable.HashSet[L] =
-    _labels.getOrElse(node, mutable.HashSet.empty)
+    _labelsByNode.getOrElse(node, mutable.HashSet.empty)
 
   def successorRelations(node: Int): mutable.HashSet[R] =
     _successorRelations.getOrElse(node, mutable.HashSet.empty)
@@ -216,11 +182,11 @@ class BitGraph[L, R](val initNodes: Int*) { //extends Graph[mutable.HashSet, Int
   }
 
   def addLabel(node: Int, label: L): Unit = {
-    _labels.getOrElseUpdate(node, { mutable.HashSet[L]() }).addOne(label)
+    _labelsByNode.getOrElseUpdate(node, { mutable.HashSet[L]() }).addOne(label)
   }
 
   def addLabels(node: Int, labels: IterableOnce[L]): Unit = {
-    _labels.getOrElseUpdate(node, { mutable.HashSet[L]() }).addAll(labels)
+    _labelsByNode.getOrElseUpdate(node, { mutable.HashSet[L]() }).addAll(labels)
   }
 
   def addEdge(source: Int, relation: R, target: Int): Unit = {
@@ -235,52 +201,14 @@ class BitGraph[L, R](val initNodes: Int*) { //extends Graph[mutable.HashSet, Int
   def clear(): Unit = {
     _nodes.clear()
     _labels.clear()
+    _relations.clear()
+    _labelsByNode.clear()
     _successorRelations.clear()
     //    _predecessorRelations.clear()
     _successorsByRelation.clear()
     _predecessorsByRelation.clear()
     //    _successors.clear()
     _predecessors.clear()
-  }
-
-}
-
-class OntologyGraph(ontology: OWLOntology) extends Graph[LazyList, OWLIndividual, OWLClass, OWLObjectProperty] {
-
-  val indexedOntology = new OWLOntologyWithFurtherIndexes(ontology)
-
-  def nodes: LazyList[OWLIndividual] = {
-    ontology.individualsInSignature().toScala(LazyList) concat ontology.anonymousIndividuals().toScala(LazyList)
-  }
-
-  def labels(node: OWLIndividual): LazyList[OWLClass] = {
-    ontology.classAssertionAxioms(node).toScala(LazyList).collect({ case ClassAssertion(_, c @ Class(_), _) => c })
-  }
-
-  def successors(node: OWLIndividual): LazyList[(OWLObjectProperty, OWLIndividual)] = {
-    indexedOntology.objectPropertyAssertionAxiomsWithSubject(node).toScala(LazyList)
-      .collect({ case ObjectPropertyAssertion(_, property @ ObjectProperty(_), _, target) => (property, target) })
-  }
-
-  def predecessors(node: OWLIndividual): LazyList[(OWLObjectProperty, OWLIndividual)] = {
-    indexedOntology.objectPropertyAssertionAxiomsWithObject(node).toScala(LazyList)
-      .collect({ case ObjectPropertyAssertion(_, property@ObjectProperty(_), subject, _) => (property, subject) })
-  }
-
-  override def successorRelations(node: OWLIndividual): LazyList[OWLObjectProperty] = {
-    successors(node).map({ case (property, _) => property })
-  }
-
-  override def predecessorRelations(node: OWLIndividual): LazyList[OWLObjectProperty] = {
-    predecessors(node).map({ case (property, _) => property })
-  }
-
-  def successorsForRelation(node: OWLIndividual, relation: OWLObjectProperty): LazyList[OWLIndividual] = {
-    successors(node).collect({ case (property, target) if property equals relation => target })
-  }
-
-  def predecessorsForRelation(node: OWLIndividual, relation: OWLObjectProperty): LazyList[OWLIndividual] = {
-    predecessors(node).collect({ case (property, subject) if property equals subject => subject })
   }
 
 }
@@ -297,6 +225,10 @@ object BitGraph {
         graph.addNode(k)
         k += 1
       })
+    ontology.classesInSignature().toScala(LazyList).filterNot(_ equals OWLThing).filterNot(_ equals OWLNothing)
+      .foreach(graph.labels().addOne(_))
+    ontology.objectPropertiesInSignature().toScala(LazyList)
+      .foreach(graph.relations().addOne(_))
     ontology.axioms().toScala(LazyList)
       .foreach({
         case ClassAssertion(_, c @ Class(_), x) if !(c equals OWLNothing) && !(c equals OWLThing) =>

@@ -66,4 +66,20 @@ object Util {
 //    }
 //  }
 
+  class Counter() {
+    var n = 0
+
+    def tick(): Unit = {
+      n = n + 1
+      print("\r" + n)
+    }
+
+    def reset(): Unit = {
+      println()
+      n = 0
+    }
+  }
+
+  val GLOBAL_COUNTER = Counter()
+
 }
