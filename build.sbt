@@ -1,0 +1,30 @@
+
+ThisBuild / organization := "de.tu_dresden.inf.lat"
+ThisBuild / version := "0.1.0-SNAPSHOT"
+
+ThisBuild / scalaVersion := "3.2.0"
+
+lazy val root = (project in file("."))
+  .settings(
+    name := "efficient-axiomatization-of-owl2el-ontologies-from-data",
+    idePackagePrefix := Some("de.tu_dresden.inf.lat")
+  )
+
+resolvers +=
+  "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
+
+libraryDependencies += "net.sourceforge.owlapi" % "owlapi-distribution" % "5.1.20"
+libraryDependencies += "org.phenoscape" %% "scowl-owlapi5" % "1.4.1"
+//libraryDependencies += "org.semanticweb.elk" % "elk-owlapi5" % "0.5.0-SNAPSHOT"
+libraryDependencies += "org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.4"
+
+
+ThisBuild / assemblyMergeStrategy  := {
+  case PathList("module-info.class") => MergeStrategy.discard
+  case x if x.endsWith("/module-info.class") => MergeStrategy.discard
+  case x =>
+    val oldStrategy = (ThisBuild / assemblyMergeStrategy).value
+    oldStrategy(x)
+}
+
+Compile / mainClass := Some("de.tu_dresden.inf.lat.axiomatization.Main")
