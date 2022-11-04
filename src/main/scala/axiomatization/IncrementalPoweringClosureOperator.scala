@@ -21,7 +21,7 @@ import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
 import scala.jdk.CollectionConverters.*
 
-class PoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[BitSet, BitSet] {
+class IncrementalPoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[BitSet, BitSet] {
 
   //    val reductionPar = new scala.collection.parallel.mutable.ParArray[OWLIndividual](reduction.nodes.toArray)
   //    val reductionNodesPar = new scala.collection.parallel.mutable.ParHashSet[Int]()

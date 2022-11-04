@@ -22,7 +22,7 @@ import scala.collection.mutable.ArraySeq
 import scala.jdk.CollectionConverters.*
 
 import de.tu_dresden.inf.lat.axiomatization.Interpretation
-import de.tu_dresden.inf.lat.axiomatization.PoweringClosureOperator
+import de.tu_dresden.inf.lat.axiomatization.IncrementalPoweringClosureOperator
 import de.tu_dresden.inf.lat.axiomatization.Util.{measureExecutionTime,formatTime,GLOBAL_COUNTER}
 
 object Axiomatization {
@@ -38,7 +38,7 @@ object Axiomatization {
     val n = reduction.nodes().size
 
     println("Computing closures...")
-    val closures = FCbO.computeAllClosures(n, PoweringClosureOperator(reduction))
+    val closures = FCbO.computeAllClosures(n, IncrementalPoweringClosureOperator(reduction))
     println(closures.size + " closures")
     GLOBAL_COUNTER.reset()
 
