@@ -38,11 +38,12 @@ object Axiomatization {
     val n = reduction.nodes().size
 
     println("Computing closures...")
-    val closures = FCbO.computeAllClosures(n, IncrementalPoweringClosureOperator(reduction))
+//    val closures = FCbO.computeAllClosures(n, IncrementalPoweringClosureOperator(reduction))
+    val closures = FCbO.computeAllClosures(n, PoweringClosureOperator(reduction))
     println(closures.size + " closures")
     GLOBAL_COUNTER.reset()
 
-    val cxt = InducedFormalContext.fromReduction(reduction, closures)
+    val cxt = InducedFormalContext(reduction, closures)
     val base = LinCbO.computeCanonicalBase(cxt, ont)
     println(base.size + " implications")
 

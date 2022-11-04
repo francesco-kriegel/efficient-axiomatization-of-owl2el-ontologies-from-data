@@ -151,7 +151,7 @@ class IncrementalPoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLOb
       powLoop()
 
     }
-    powering.clear()
+//    powering.clear()
     //      println("Closure computation done.")
     poweringSimulation.row(xs)
   }

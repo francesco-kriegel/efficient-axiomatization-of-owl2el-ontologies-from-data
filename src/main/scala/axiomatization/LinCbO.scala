@@ -3,13 +3,19 @@ package axiomatization
 
 import axiomatization.Util.GLOBAL_COUNTER
 
+import org.semanticweb.owlapi.model.{OWLClass, OWLObjectProperty}
+
 import java.io.{BufferedReader, File, FileReader}
+import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
+import de.tu_dresden.inf.lat.axiomatization.InducedFormalContext
 
 object LinCbO {
 
-  def computeCanonicalBase[M](cxt: FormalContext[_, M], identifier: String): collection.Seq[(collection.Set[M], collection.Set[M])] = {
+  type M = OWLClass | (OWLObjectProperty, BitSet)
+
+  def computeCanonicalBase(cxt: InducedFormalContext, identifier: String): collection.Seq[(collection.Set[M], collection.Set[M])] = {
 
     //    val basepath = "/Users/francesco/workspace/Java_Scala/efficient-axiomatization-of-owl2el-ontologies-from-data/"
     val basepath = ""
@@ -20,8 +26,13 @@ object LinCbO {
     println("Induced context written to " + cxtFile)
 
     println("Running LinCbO...")
+    println()
+    println("########################################")
     println(sys.process.Process(basepath + "LinCbO/fcai/CanonicalBasis/fcai " + basepath + identifier + ".cxt " + basepath + identifier + ".canbase 1").!!)
+    println("\r########################################")
+    println()
 
+    println("Reading canonical base...")
     def read(string: String): collection.Set[M] = {
       val set = mutable.HashSet[M]()
       val i = string.iterator
