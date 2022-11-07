@@ -21,21 +21,21 @@ import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
 import scala.jdk.CollectionConverters.*
 
-class IncrementalPoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[BitSet, BitSet] {
+class IncrementalPoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
 
   //    val reductionPar = new scala.collection.parallel.mutable.ParArray[OWLIndividual](reduction.nodes.toArray)
   //    val reductionNodesPar = new scala.collection.parallel.mutable.ParHashSet[Int]()
   //    reductionNodesPar.addAll(reduction.nodes)
 
-  val powering = HashGraph[BitSet, OWLClass, OWLObjectProperty]()
+  val powering = HashGraph[collection.BitSet, OWLClass, OWLObjectProperty]()
 
-  private def extendPowering(xs: BitSet): collection.Set[BitSet] = {
-    val delta = mutable.HashSet[BitSet]()
+  private def extendPowering(xs: collection.BitSet): collection.Set[collection.BitSet] = {
+    val delta = mutable.HashSet[collection.BitSet]()
 
     @tailrec
-    def extend(current: IterableOnce[BitSet]): Unit = {
+    def extend(current: IterableOnce[collection.BitSet]): Unit = {
       //        println("ext...")
-      val next = mutable.HashSet[BitSet]()
+      val next = mutable.HashSet[collection.BitSet]()
       for (xs <- current) {
         if (!powering.nodes().contains(xs)) {
           powering.nodes().addOne(xs)
@@ -45,7 +45,8 @@ class IncrementalPoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLOb
           powering.addLabels(xs, labels)
           val relations = reduction.successorRelations(xs.head)
           relations.foreach(r => {
-            val hypergraph: collection.Set[collection.Set[Int]] = xs.unsorted.map(x => BitSet.fromSpecific(reduction.successorsForRelation(x, r)))
+//            val hypergraph: collection.Set[collection.Set[Int]] = xs.unsorted.map(x => BitSet.fromSpecific(reduction.successorsForRelation(x, r)))
+            val hypergraph: collection.Set[collection.Set[Int]] = xs.unsorted.map(x => reduction.successorsForRelation(x, r))
             HSdag.allMinimalHittingSets(hypergraph).foreach(mhs => {
               val ys = BitSet.fromSpecific(mhs)
               powering.addEdge(xs, r, ys)
@@ -78,7 +79,7 @@ class IncrementalPoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLOb
   //          __xs.addAll(poweringSimulation.row(ys))
   //      })
   //      val xs = __xs.toImmutable
-  def apply(xs: BitSet): BitSet = {
+  def apply(xs: collection.BitSet): collection.BitSet = {
     val delta = extendPowering(xs)
     if (delta.nonEmpty) {
       //        counter.tick()
@@ -100,7 +101,7 @@ class IncrementalPoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLOb
 
       //        println("Computing the mapping R(x,r)...")
       //        val powR = new collection.concurrent.TrieMap[(BitSet, OWLObjectProperty), mutable.BitSet] //with mutable.MultiMap[(BitSet, OWLObjectProperty), Int]
-      val powR = new mutable.HashMap[(BitSet, OWLObjectProperty), mutable.BitSet]
+      val powR = new mutable.HashMap[(collection.BitSet, OWLObjectProperty), mutable.BitSet]
 
       for (x <- delta union border) {
         //          counter.tick()

@@ -8,26 +8,26 @@ import scala.collection.mutable.ArrayBuffer
 
 class BitSetToIntRelation {
 
-  private val bits = collection.concurrent.TrieMap[BitSet, mutable.BitSet]()
+  private val bits = collection.concurrent.TrieMap[collection.BitSet, mutable.BitSet]()
 
-  def add(xs: BitSet, y: Int): Unit =
+  def add(xs: collection.BitSet, y: Int): Unit =
     if (!xs(y)) bits.getOrElseUpdate(xs, mutable.BitSet()).addOne(y)
 
-  def remove(xs: BitSet, y: Int): Unit =
+  def remove(xs: collection.BitSet, y: Int): Unit =
     if (xs(y)) throw new IllegalArgumentException()
     else if (bits.contains(xs)) bits(xs).remove(y)
 
-  def contains(xs: BitSet, y: Int): Boolean =
+  def contains(xs: collection.BitSet, y: Int): Boolean =
     xs(y) || (bits.contains(xs) && bits(xs)(y))
 
-  def apply(xs: BitSet, y: Int): Boolean =
+  def apply(xs: collection.BitSet, y: Int): Boolean =
     contains(xs, y)
 
-  def row(xs: BitSet): BitSet =
+  def row(xs: collection.BitSet): collection.BitSet =
     if (bits.contains(xs)) xs ++ bits(xs)
     else xs
 
-  def rawRow(xs: BitSet): collection.BitSet =
+  def rawRow(xs: collection.BitSet): collection.BitSet =
     bits.getOrElse(xs, BitSet.empty)
 
   def rows = bits.keySet

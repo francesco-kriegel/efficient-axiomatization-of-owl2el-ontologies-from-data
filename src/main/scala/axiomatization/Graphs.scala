@@ -107,29 +107,29 @@ class HashGraph[N, L, R](val initNodes: N*) extends Graph[N, L, R] {
 
 }
 
-object HashGraph {
-
-  def fromOntology(ontology: OWLOntology): HashGraph[OWLIndividual, OWLClass, OWLObjectProperty] = {
-    val graph = HashGraph[OWLIndividual, OWLClass, OWLObjectProperty]()
-    (ontology.individualsInSignature().toScala(LazyList) concat ontology.anonymousIndividuals().toScala(LazyList))
-      .foreach(graph.addNode(_))
-    ontology.classesInSignature().toScala(LazyList).filterNot(_ equals OWLThing).filterNot(_ equals OWLNothing)
-      .foreach(graph.labels().addOne(_))
-    ontology.objectPropertiesInSignature().toScala(LazyList)
-      .foreach(graph.relations().addOne(_))
-    ontology.axioms().toScala(LazyList)
-      .foreach({
-        case ClassAssertion(_, c @ Class(_), x) if !(c equals OWLNothing) && !(c equals OWLThing) =>
-          graph.addLabel(x, c)
-        case ObjectPropertyAssertion(_, property @ ObjectProperty(_), source, target) =>
-          graph.addEdge(source, property, target)
-        case ax =>
-//          println("Ignored axiom: " + ax)
-      })
-    graph
-  }
-
-}
+//object HashGraph {
+//
+//  def fromOntology(ontology: OWLOntology): HashGraph[OWLIndividual, OWLClass, OWLObjectProperty] = {
+//    val graph = HashGraph[OWLIndividual, OWLClass, OWLObjectProperty]()
+//    (ontology.individualsInSignature().toScala(LazyList) concat ontology.anonymousIndividuals().toScala(LazyList))
+//      .foreach(graph.addNode(_))
+//    ontology.classesInSignature().toScala(LazyList).filterNot(_ equals OWLThing).filterNot(_ equals OWLNothing)
+//      .foreach(graph.labels().addOne(_))
+//    ontology.objectPropertiesInSignature().toScala(LazyList)
+//      .foreach(graph.relations().addOne(_))
+//    ontology.axioms().toScala(LazyList)
+//      .foreach({
+//        case ClassAssertion(_, c @ Class(_), x) if !(c equals OWLNothing) && !(c equals OWLThing) =>
+//          graph.addLabel(x, c)
+//        case ObjectPropertyAssertion(_, property @ ObjectProperty(_), source, target) =>
+//          graph.addEdge(source, property, target)
+//        case ax =>
+////          println("Ignored axiom: " + ax)
+//      })
+//    graph
+//  }
+//
+//}
 
 class BitGraph[L, R](val initNodes: Int*) { //extends Graph[mutable.HashSet, Int, L, R] {
 
@@ -209,36 +209,6 @@ class BitGraph[L, R](val initNodes: Int*) { //extends Graph[mutable.HashSet, Int
     _predecessorsByRelation.clear()
     //    _successors.clear()
     _predecessors.clear()
-  }
-
-}
-
-object BitGraph {
-
-  def fromOntology(ontology: OWLOntology): BitGraph[OWLClass, OWLObjectProperty] = {
-    val graph = BitGraph[OWLClass, OWLObjectProperty]()
-    val index = mutable.HashMap[OWLIndividual, Int]()
-    var k = 0
-    (ontology.individualsInSignature().toScala(LazyList) concat ontology.anonymousIndividuals().toScala(LazyList))
-      .foreach(individual => {
-        index(individual) = k
-        graph.addNode(k)
-        k += 1
-      })
-    ontology.classesInSignature().toScala(LazyList).filterNot(_ equals OWLThing).filterNot(_ equals OWLNothing)
-      .foreach(graph.labels().addOne(_))
-    ontology.objectPropertiesInSignature().toScala(LazyList)
-      .foreach(graph.relations().addOne(_))
-    ontology.axioms().toScala(LazyList)
-      .foreach({
-        case ClassAssertion(_, c @ Class(_), x) if !(c equals OWLNothing) && !(c equals OWLThing) =>
-          graph.addLabel(index(x), c)
-        case ObjectPropertyAssertion(_, property @ ObjectProperty(_), source, target) =>
-          graph.addEdge(index(source), property, index(target))
-        case ax =>
-        //          println("Ignored axiom: " + ax)
-      })
-    graph
   }
 
 }

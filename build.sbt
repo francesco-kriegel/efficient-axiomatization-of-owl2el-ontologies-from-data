@@ -15,7 +15,7 @@ resolvers +=
 
 libraryDependencies += "net.sourceforge.owlapi" % "owlapi-distribution" % "5.1.20"
 libraryDependencies += "org.phenoscape" %% "scowl-owlapi5" % "1.4.1"
-//libraryDependencies += "org.semanticweb.elk" % "elk-owlapi5" % "0.5.0-SNAPSHOT"
+libraryDependencies += "org.semanticweb.elk" % "elk-owlapi5" % "0.5.0-SNAPSHOT"
 libraryDependencies += "org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.4"
 
 

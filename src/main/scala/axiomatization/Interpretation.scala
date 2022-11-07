@@ -6,20 +6,17 @@ import java.io.File
 import org.phenoscape.scowl.*
 import org.semanticweb.owlapi.apibinding.OWLManager
 import org.semanticweb.owlapi.model.parameters.Imports
-import org.semanticweb.owlapi.model.{NodeID, OWLAnonymousIndividual, OWLClass, OWLClassExpression, OWLIndividual, OWLObjectProperty}
+import org.semanticweb.owlapi.model.{NodeID, OWLAnonymousIndividual, OWLClass, OWLClassExpression, OWLIndividual, OWLObjectProperty, OWLOntology}
 import uk.ac.manchester.cs.owl.owlapi.OWLAnonymousIndividualImpl
+
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.jdk.StreamConverters.*
-
 import de.tu_dresden.inf.lat.axiomatization.Util.GLOBAL_COUNTER
 
 object Interpretation {
 
-  def loadFromOntologyFile(ontologyFile: File): BitGraph[OWLClass, OWLObjectProperty] = {
-
-    val manager = OWLManager.createOWLOntologyManager()
-    val ontology = manager.loadOntologyFromOntologyDocument(ontologyFile)
+  def loadFromOntologyFile(ontology: OWLOntology): BitGraph[OWLClass, OWLObjectProperty] = {
 
     val variables = mutable.HashMap[OWLClassExpression, OWLAnonymousIndividual]()
 
@@ -37,7 +34,7 @@ object Interpretation {
           ontology.addAxiom(individual Fact(property, successor))
           unfoldABoxAssertion(filler, successor)
         case _ =>
-          Console.err.println("Unsupported class expression: " + classExpression)
+//          Console.err.println("Unsupported class expression in ABox: " + classExpression)
       })
     }
 
@@ -48,10 +45,28 @@ object Interpretation {
         case _ => {}
       })
 
-    //    val graph = OntologyGraph(ontology)
-    //    val graph = HashGraph.fromOntology(ontology)
-    val graph = BitGraph.fromOntology(ontology)
-    manager.clearOntologies()
+    val graph = BitGraph[OWLClass, OWLObjectProperty]()
+    val index = mutable.HashMap[OWLIndividual, Int]()
+    var k = 0
+    (ontology.individualsInSignature().toScala(LazyList) concat ontology.anonymousIndividuals().toScala(LazyList))
+      .foreach(individual => {
+        index(individual) = k
+        graph.addNode(k)
+        k += 1
+      })
+    ontology.classesInSignature().toScala(LazyList).filterNot(_ equals OWLThing).filterNot(_ equals OWLNothing)
+      .foreach(graph.labels().addOne(_))
+    ontology.objectPropertiesInSignature().toScala(LazyList)
+      .foreach(graph.relations().addOne(_))
+    ontology.axioms().toScala(LazyList)
+      .foreach({
+        case ClassAssertion(_, c@Class(_), x) if !(c equals OWLNothing) && !(c equals OWLThing) =>
+          graph.addLabel(index(x), c)
+        case ObjectPropertyAssertion(_, property@ObjectProperty(_), source, target) =>
+          graph.addEdge(index(source), property, index(target))
+        case ax =>
+        //          Console.err.println("Unsupported assertion in ABox: " + ax)
+      })
 
     graph
 
@@ -153,7 +168,8 @@ object Interpretation {
 
   }
 
-  def reductionOf(graph: BitGraph[OWLClass, OWLObjectProperty]): BitGraph[OWLClass, OWLObjectProperty] = {
+  def reductionOf(graph: BitGraph[OWLClass, OWLObjectProperty], withMapping: Boolean = false):
+  (BitGraph[OWLClass, OWLObjectProperty], Int => mutable.BitSet, Int => Int) = {
 
     val simulation = maximalSimulationOn(graph)
 
@@ -187,9 +203,15 @@ object Interpretation {
     //    equivalenceClasses.map(_.hashCode).foreach(reduction.addNode(_))
     //    val index = mutable.HashMap[collection.Set[OWLIndividual], Int]()
     val index = mutable.HashMap[mutable.BitSet, Int]()
-    var i = 1
+    val representedBy = new Array[Int](graph.nodes().size) // mutable.HashMap[Int, Int]()
+    val representativeOf = new Array[mutable.BitSet](equivalenceClasses.size) // mutable.HashMap[Int, mutable.BitSet]()
+//    var i = 1
+    var i = 0
     for (xs <- equivalenceClasses) {
       index(xs) = i
+      if (withMapping)
+        xs.foreach(representedBy(_) = i)
+        representativeOf(i) = xs
       i += 1
     }
 //    val n = i - 1
@@ -212,7 +234,10 @@ object Interpretation {
     }
     GLOBAL_COUNTER.reset()
 
-    reduction
+    if (withMapping)
+      (reduction, representativeOf, representedBy)
+    else
+      (reduction, PartialFunction.empty, PartialFunction.empty)
 
   }
 

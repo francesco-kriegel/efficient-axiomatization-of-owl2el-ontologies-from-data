@@ -2,6 +2,8 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
+import scala.collection.mutable
+
 object Util {
 
   def fixedPoint[A](monotoneFunction: A ⇒ A, equivalencePredicate: (A, A) ⇒ Boolean = (a1: A, a2: A) ⇒ a1 equals a2) =
@@ -31,6 +33,27 @@ object Util {
   implicit class LocalSet[A](set: collection.Set[A]) {
     def strictSubsetOf(other: collection.Set[A]): Boolean = {
       (set subsetOf other) && (set.size < other.size)
+    }
+  }
+
+  def intersectionOfBitSets(it: Iterator[mutable.BitSet], size: Int, domain: collection.BitSet): mutable.BitSet = {
+    if (it.isEmpty)
+//      throw new IllegalArgumentException("Cannot compute empty intersection.")
+      mutable.BitSet.fromSpecific(domain)
+    else {
+      val elems = new Array[Array[Long]](size)
+      var i = 0
+      it.foreach(set => {
+        elems(i) = set.toBitMask
+        i += 1
+      })
+      val nwords = elems.map(_.length).min
+      val newElems = new Array[Long](nwords)
+      (0 until nwords).foreach(i => {
+        newElems(i) = elems(0)(i)
+        (1 until elems.length).foreach(n => newElems(i) &= elems(n)(i))
+      })
+      new mutable.BitSet(newElems)
     }
   }
 
