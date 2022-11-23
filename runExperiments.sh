@@ -1941,13 +1941,13 @@ for key in "${ontologies[@]}"; do
       0) # successful computation
         ;;
       124|137) # Timeout
-        echo "${key};Reduction;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+        echo "${key};Reduction;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
         ;;
       3) # Out of memory
-        echo "${key};Reduction;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+        echo "${key};Reduction;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
         ;;
       *) # other error
-        echo "${key};Reduction;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+        echo "${key};Reduction;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
         ;;
     esac
 
@@ -1962,13 +1962,13 @@ for key in "${ontologies[@]}"; do
         0) # successful computation
           ;;
         124|137) # Timeout
-          echo "${key};None;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+          echo "${key};None;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
           ;;
         3) # Out of memory
-          echo "${key};None;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+          echo "${key};None;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
           ;;
         *) # other error
-          echo "${key};None;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+          echo "${key};None;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
           ;;
       esac
 
@@ -1983,13 +1983,13 @@ for key in "${ontologies[@]}"; do
           0) # successful computation
             ;;
           124|137) # Timeout
-            echo "${key};Fast;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+            echo "${key};Fast;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
             ;;
           3) # Out of memory
-            echo "${key};Fast;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+            echo "${key};Fast;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
             ;;
           *) # other error
-            echo "${key};Fast;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+            echo "${key};Fast;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
             ;;
         esac
 
@@ -2003,13 +2003,13 @@ for key in "${ontologies[@]}"; do
             0) # successful computation
               ;;
             124|137) # Timeout
-              echo "${key};Canonical;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+              echo "${key};Canonical;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
               ;;
             3) # Out of memory
-              echo "${key};Canonical;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+              echo "${key};Canonical;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
               ;;
             *) # other error
-              echo "${key};Canonical;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.owl"
+              echo "${key};Canonical;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
               ;;
           esac
           echo ""

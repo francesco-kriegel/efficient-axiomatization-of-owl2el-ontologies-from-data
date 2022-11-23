@@ -224,7 +224,9 @@ object LinCbOWithBackgroundImplications {
 object LinCbO_JKK {
 
 
-  def computeCanonicalBase(cxt: InducedFormalContext, identifier: String)(using logger: Logger): (collection.Seq[(collection.Set[M], collection.Set[M])], Long) = {
+  // def computeCanonicalBase(cxt: InducedFormalContext, identifier: String)(using logger: Logger): (collection.Seq[(collection.Set[M], collection.Set[M])], Long) = {
+  // def computeCanonicalBase(cxt: InducedFormalContext, identifier: String)(using logger: Logger): (collection.Seq[BitImplication], Long) = {
+  def computeCanonicalBase(cxt: InducedFormalContext, identifier: String)(using logger: Logger): (Int, Long) = {
 
     val runnableLinCbOFilename = "LinCbO/fcai/CanonicalBasis/fcai"
     val contextFilename = "ore2015_pool_sample_experiments/contexts/" + identifier + "_" + cxt.whichDisjointnessAxioms + ".cxt"
@@ -236,40 +238,66 @@ object LinCbO_JKK {
     logger.println("Induced context written to " + cxtFile)
 
     logger.println("Running LinCbO...")
-    logger.println()
-    logger.println("########################################")
+//    logger.println()
+//    logger.println("########################################")
     val (output, duration) = measureExecutionTime {
       sys.process.Process(runnableLinCbOFilename + " " + contextFilename + " " + implicationBaseFilename + " 1").!!
     }
     logger.println(output)
-    logger.println("\r########################################")
-    logger.println()
+//    logger.println("\r########################################")
+//    logger.println()
 
-    logger.println("Reading canonical base...")
-    def read(string: String): collection.Set[M] = {
-      val set = mutable.HashSet[M]()
-      val i = string.iterator
-      val j = cxt.activeAttributes.iterator
-      while (i.hasNext && j.hasNext)
-        if (i.next() equals '1')
-          set.addOne(j.next())
-      set
+    try {
+      val implicationBaseFile = new File(implicationBaseFilename + "-myCboMemNoPruning")
+      if (implicationBaseFile.exists())
+        implicationBaseFile.delete()
+    } catch {
+      case _: Exception => {}
     }
 
-    val canonicalBase = ListBuffer[(collection.Set[M], collection.Set[M])]()
-    val reader = new BufferedReader(new FileReader(new File(implicationBaseFilename + "-myCboMemNoPruning")))
-    // reader.lines().forEach(logger.println(_))
-    reader.lines.forEach(line => {
-      if (line.contains("=>")) {
-        val s = line.split("=>")
-        val premise = read(s(0))
-        val conclusion = read(s(1))
-        canonicalBase.addOne((premise, conclusion))
-      }
-    })
-    reader.close()
+    val thirdLine = output.lines().skip(2).findFirst().get()
+    val k = thirdLine.indexOf("Global counter")
+    val numberOfImplications = thirdLine.substring(6, k).toInt
 
-    (canonicalBase, duration)
+    (numberOfImplications, duration)
+
+//    logger.println("Reading canonical base...")
+////    def read(string: String): collection.Set[M] = {
+////      val set = mutable.HashSet[M]()
+////      val i = string.iterator
+////      val j = cxt.activeAttributes.iterator
+////      while (i.hasNext && j.hasNext)
+////        if (i.next() equals '1')
+////          set.addOne(j.next())
+////      set
+////    }
+//
+//    def read(string: String): collection.BitSet = {
+//      val set = mutable.BitSet()
+//      val i = string.iterator
+//      var j = 0
+//      while (i.hasNext)
+//        if (i.next() equals '1')
+//          set.addOne(j)
+//        j += 1
+//      set
+//    }
+//
+////    val canonicalBase = ListBuffer[(collection.Set[M], collection.Set[M])]()
+//    val canonicalBase = ListBuffer[BitImplication]()
+//    val reader = new BufferedReader(new FileReader(new File(implicationBaseFilename + "-myCboMemNoPruning")))
+//    // reader.lines().forEach(logger.println(_))
+//    reader.lines.forEach(line => {
+//      if (line.contains("=>")) {
+//        val s = line.split("=>")
+//        val premise = read(s(0))
+//        val conclusion = read(s(1))
+//        canonicalBase.addOne(premise -> conclusion)
+//      }
+//    })
+//    reader.close()
+//
+//    (canonicalBase, duration)
 
   }
 

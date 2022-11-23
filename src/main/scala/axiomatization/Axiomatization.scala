@@ -709,6 +709,7 @@ object Axiomatization {
     val (cbase, measurement_ComputationTime_CanonicalBase) = measureExecutionTime {
       if (withDisjointnessAxioms)
         LinCbO.computeCanonicalBase(cxt)
+//        mutable.ArrayBuffer.empty
       else
         LinCbO.computeCanonicalBase(cxt, cxt.commonObjects(_).nonEmpty)
     }
@@ -725,13 +726,21 @@ object Axiomatization {
 
 
 
-    val (base, measurement_ComputationTime_CanonicalBaseJKK) =
+//    val (base, measurement_ComputationTime_CanonicalBaseJKK) =
+//      if (withDisjointnessAxioms)
+//        LinCbO_JKK.computeCanonicalBase(cxt, ont)
+//      else
+//        (Seq.empty, -1l)
+//    logger.println("Computing the canonical base with LinCbO/C++ took " + formatTime(measurement_ComputationTime_CanonicalBaseJKK))
+//    val measurement_Number_ImplicationsInCanonicalBaseJKK = base.size
+//    logger.println(measurement_Number_ImplicationsInCanonicalBaseJKK + " implications in canonical base")
+//    logger.println()
+    val (measurement_Number_ImplicationsInCanonicalBaseJKK, measurement_ComputationTime_CanonicalBaseJKK) =
       if (withDisjointnessAxioms)
         LinCbO_JKK.computeCanonicalBase(cxt, ont)
       else
-        (Seq.empty, -1l)
+        (-1, -1l)
     logger.println("Computing the canonical base with LinCbO/C++ took " + formatTime(measurement_ComputationTime_CanonicalBaseJKK))
-    val measurement_Number_ImplicationsInCanonicalBaseJKK = base.size
     logger.println(measurement_Number_ImplicationsInCanonicalBaseJKK + " implications in canonical base")
     logger.println()
 
