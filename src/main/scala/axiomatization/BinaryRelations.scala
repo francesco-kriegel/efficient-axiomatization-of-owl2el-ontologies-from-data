@@ -32,6 +32,9 @@ class BitSetToIntRelation {
 
   def rows = bits.keySet
 
+  def clear(): Unit =
+    bits.clear()
+
 }
 
 class ReflexiveBitRelation[T] extends BitRelation[T, T] {

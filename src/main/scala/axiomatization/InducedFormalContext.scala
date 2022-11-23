@@ -8,92 +8,111 @@ import org.semanticweb.owlapi.model.{OWLClass, OWLObjectProperty}
 
 import scala.collection.immutable.BitSet
 import scala.collection.mutable
-
 import Util.intersectionOfBitSets
 
-class InducedFormalContext(reduction: BitGraph[OWLClass, OWLObjectProperty], isIndividual: Int => Boolean, closures: collection.Set[collection.BitSet]) {
+import scala.annotation.threadUnsafe
 
-  type M = OWLClass | (OWLObjectProperty, collection.BitSet)
+class InducedFormalContext(reduction: BitGraph[OWLClass, OWLObjectProperty],
+                           isIndividual: Int => Boolean = _ => true,
+                           closures: collection.Set[collection.BitSet],
+                           val whichDisjointnessAxioms: WhichDisjointnessAxioms) {
 
+  val includeOWLNothing = !(whichDisjointnessAxioms equals WhichDisjointnessAxioms.None)
+  val full = whichDisjointnessAxioms equals WhichDisjointnessAxioms.Canonical
+
+  @threadUnsafe
   lazy val objects: mutable.BitSet =
     reduction.nodes().filter(isIndividual)
 
+  @threadUnsafe
   lazy val attributes: Array[M] =
-    Array[M](List(OWLNothing) ++ reduction.labels() ++ reduction.relations().flatMap(r => closures.map(c => (r, c))) : _*)
+    Array[M](List(OWLNothing) ++ reduction.labels() ++ reduction.relations().flatMap(r => closures.map(c => ObjectSomeValuesFromMMSC(r, c))) : _*)
 
-  lazy val attributeIndex: collection.Map[M, Int] = {
-    val index = mutable.HashMap[M, Int]()
-    (0 until attributes.length).foreach(i => index.update(attributes(i), i))
-    index
-  }
+//  lazy val attributeIndex: collection.Map[M, Int] = {
+//    val index = mutable.HashMap[M, Int]()
+//    (0 until attributes.length).foreach(i => index.update(attributes(i), i))
+//    index
+//  }
 
 //  def fromBits(bs: collection.BitSet): collection.Set[M] = {
 //    bs.unsorted.map(attributes)
 //  }
-//
+
 //  def toBits(ms: collection.Set[M]): collection.BitSet = {
 //    mutable.BitSet.fromSpecific(ms.iterator.map(attributeIndex))
 //  }
 
-  lazy val incidenceMatrix: BitBiMap = {
-    val matrix = BitBiMap()
-    objects.foreach(g => {
-      (0 until attributes.length).foreach(m => if (incidence(g, attributes(m))) matrix.add(g, m))
-    })
-    matrix
-  }
+//  lazy val incidenceMatrix: BitBiMap = {
+//    val matrix = BitBiMap()
+//    objects.foreach(g => {
+//      (0 until attributes.length).foreach(m => if (incidence(g, attributes(m))) matrix.add(g, m))
+//    })
+//    matrix
+//  }
 
   private def incidence(g: Int, m: M): Boolean = {
     m match
       case OWLNothing => false
       case A @ Class(_) => reduction.labels(g).contains(A)
-      //        case (r @ ObjectProperty(_), c: BitSet) => reduction.successorsForRelation(g, r).exists(c(_))
-      case (r @ ObjectProperty(_), c: BitSet) => (reduction.successorsForRelation(g, r) intersect c).nonEmpty
-    //        case _ => false
+      // case (r @ ObjectProperty(_), c: BitSet) => reduction.successorsForRelation(g, r).exists(c(_))
+      // case (r @ ObjectProperty(_), c: BitSet) => (reduction.successorsForRelation(g, r) intersect c).nonEmpty
+      case ObjectSomeValuesFromMMSC(r, c) => (reduction.successorsForRelation(g, r) intersect c).nonEmpty
+      case _ => throw new RuntimeException("This should not happen.") // to be exhaustive
   }
 
   def isOccupiedAttribute(m: M): Boolean = {
-    (m equals OWLNothing) || objects.exists(g => incidence(g, m))
+    // (includeOWLNothing && (m equals OWLNothing)) || objects.exists(g => incidence(g, m))
+    if (m equals OWLNothing)
+      includeOWLNothing
+    else
+      objects.exists(g => incidence(g, m))
   }
 
-  lazy val occupiedAttributes = attributes.filter(isOccupiedAttribute(_))
+  @threadUnsafe
+  lazy val activeAttributes = if full then attributes else attributes.filter(isOccupiedAttribute(_))
 
-  lazy val occupiedAttributeIndex: collection.Map[M, Int] = {
+  @threadUnsafe
+  lazy val activeAttributeIndex: collection.Map[M, Int] = {
     val index = mutable.HashMap[M, Int]()
-    (0 until occupiedAttributes.length).foreach(i => index.update(occupiedAttributes(i), i))
+    (0 until activeAttributes.length).foreach(i => index.update(activeAttributes(i), i))
     index
   }
 
-  def fromBits(bs: collection.BitSet): collection.Set[M] = {
-    bs.unsorted.map(occupiedAttributes)
-  }
+//  lazy val unsatisfiableAttributes =
+//    attributes diff (List(OWLNothing) ++ occupiedAttributes)
 
-  def toBits(ms: collection.Set[M]): collection.BitSet = {
-    mutable.BitSet.fromSpecific(ms.iterator.map(occupiedAttributeIndex))
-  }
+//  def fromBits(bs: collection.BitSet): collection.Set[M] = {
+//    bs.unsorted.map(occupiedAttributes)
+//  }
+//
+//  def toBits(ms: collection.Set[M]): collection.BitSet = {
+//    mutable.BitSet.fromSpecific(ms.iterator.map(occupiedAttributeIndex))
+//  }
 
-  lazy val occupiedIncidenceMatrix: BitBiMap = {
+  @threadUnsafe
+  lazy val activeIncidenceMatrix: BitBiMap = {
     val matrix = BitBiMap()
     objects.foreach(g => {
-      (0 until occupiedAttributes.length).foreach(m => if (incidence(g, occupiedAttributes(m))) matrix.add(g, m))
+      (0 until activeAttributes.length).foreach(m => if (incidence(g, activeAttributes(m))) matrix.add(g, m))
     })
     matrix
   }
 
-  lazy val bitsOccupiedAttributes = BitSet.fromSpecific(0 until occupiedAttributes.length)
+  @threadUnsafe
+  lazy val bitsActiveAttributes = BitSet.fromSpecific(0 until activeAttributes.length)
 
   def closure(bs: collection.BitSet): mutable.BitSet = {
-//    val gs = intersectionOfBitSets(bs.iterator.map(b => occupiedIncidenceMatrix.col(b)), bs.size, objects)
-//    intersectionOfBitSets(gs.iterator.map(g => occupiedIncidenceMatrix.row(g)), gs.size, bitsOccupiedAttributes)
+    // val gs = intersectionOfBitSets(bs.iterator.map(b => occupiedIncidenceMatrix.col(b)), bs.size, objects)
+    // intersectionOfBitSets(gs.iterator.map(g => occupiedIncidenceMatrix.row(g)), gs.size, bitsOccupiedAttributes)
     commonAttributes(commonObjects(bs))
   }
 
   def commonObjects(bs: collection.BitSet): mutable.BitSet = {
-    intersectionOfBitSets(bs.iterator.map(b => occupiedIncidenceMatrix.col(b)), bs.size, objects)
+    intersectionOfBitSets(bs.iterator.map(b => activeIncidenceMatrix.col(b)), bs.size, objects)
   }
 
   def commonAttributes(gs: collection.BitSet): mutable.BitSet = {
-    intersectionOfBitSets(gs.iterator.map(g => occupiedIncidenceMatrix.row(g)), gs.size, bitsOccupiedAttributes)
+    intersectionOfBitSets(gs.iterator.map(g => activeIncidenceMatrix.row(g)), gs.size, bitsActiveAttributes)
   }
 
 //  def closure(bs: collection.BitSet): collection.BitSet = {
@@ -105,7 +124,9 @@ class InducedFormalContext(reduction: BitGraph[OWLClass, OWLObjectProperty], isI
     m match
       case OWLNothing => OWLNothing.toString
       case A @ Class(_) => A.toString
-      case (r @ ObjectProperty(_), c: BitSet) => "ObjectSomeValuesFrom(" + r + "," + c.mkString("MMSC(", ",", ")") + ")"
+      // case (r @ ObjectProperty(_), c: BitSet) => "ObjectSomeValuesFrom(" + r + "," + c.mkString("MMSC(", ",", ")") + ")"
+      case ObjectSomeValuesFromMMSC(r, c) => "ObjectSomeValuesFrom(" + r + "," + c.mkString("MMSC(", ",", ")") + ")"
+      case _ => throw new RuntimeException("This should not happen.") // to be exhaustive
   }
 
   def writeToFile(cxtFile: File): Unit = {
@@ -113,20 +134,21 @@ class InducedFormalContext(reduction: BitGraph[OWLClass, OWLObjectProperty], isI
     writer.write("B\n")
     writer.write("\n")
     writer.write(objects.size + "\n")
-    writer.write(occupiedAttributes.size + "\n")
+    writer.write(activeAttributes.size + "\n")
     writer.write("\n")
     objects.foreach(g => writer.write(g.toString + "\n"))
-    occupiedAttributes.foreach(m => writer.write(toString(m) + "\n"))
+    activeAttributes.foreach(m => writer.write(toString(m) + "\n"))
     objects.foreach(g => {
-      occupiedAttributes.foreach(m => {
-//        if (incidence(g, m)) writer.write("X")
-        if (occupiedIncidenceMatrix(g, occupiedAttributeIndex(m))) writer.write("X")
+      activeAttributes.foreach(m => {
+        // if (incidence(g, m)) writer.write("X")
+        if (activeIncidenceMatrix(g, activeAttributeIndex(m))) writer.write("X")
         else writer.write(".")
       })
       writer.write("\n")
     })
-//    writer.write("\n\n\n")
-//    attributes.foreach(m => if (!occupiedAttributes.contains(m)) writer.write(toString(m) + "\n"))
+    // writer.write("\n\n\n")
+    // attributes.foreach(m => if (!occupiedAttributes.contains(m)) writer.write(toString(m) + "\n"))
+    writer.flush()
     writer.close()
   }
 

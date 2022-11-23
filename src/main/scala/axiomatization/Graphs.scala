@@ -211,4 +211,13 @@ class BitGraph[L, R](val initNodes: Int*) { //extends Graph[mutable.HashSet, Int
     _predecessors.clear()
   }
 
+  def sizeCode(): String = {
+    _nodes.size + "." + _labels.size + "." + _relations.size + "." +
+      _labelsByNode.size + "." + _labelsByNode.values.map(_.size).sum + "." +
+      _successorRelations.size + "." + _successorRelations.values.map(_.size).sum + "." +
+      _successorsByRelation.size + "." + _successorsByRelation.values.map(_.size).sum + "." +
+      _predecessorsByRelation.size + "." + _predecessorsByRelation.values.map(_.size).sum + "." +
+      _predecessors.size + "." + _predecessors.values.map(_.size).sum
+  }
+
 }

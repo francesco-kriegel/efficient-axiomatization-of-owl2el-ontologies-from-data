@@ -3,12 +3,16 @@ package axiomatization
 
 import scala.collection.mutable
 import util.control.Breaks.*
-
-import de.tu_dresden.inf.lat.axiomatization.Util.measureExecutionTime
+import de.tu_dresden.inf.lat.axiomatization.Util.{printExecutionTime, writeExecutionTime}
 
 object FCbO {
 
-  def computeAllClosures(n: Int, closure: collection.BitSet => collection.BitSet, inclusionIdeal: collection.BitSet => Boolean = _ => true): collection.Set[collection.BitSet] = {
+  def computeAllClosures(n: Int,
+                         closure: collection.BitSet => collection.BitSet,
+                         inclusionIdeal: collection.BitSet => Boolean = _ => true)
+                        (using logger: Logger)
+//                        (using valueLogger: ValueLogger)
+  : collection.Set[collection.BitSet] = {
 
     val closures = mutable.HashSet[collection.BitSet]()
 
@@ -50,13 +54,15 @@ object FCbO {
         def FCbO(xs: collection.BitSet, i: Int, ns: Int => collection.BitSet): Unit = {
           val queue = mutable.Queue[(collection.BitSet, Int)]()
           val ms = mutable.HashMap[Int, collection.BitSet]()
-          for (j <- i to n) {
+          for (j <- i until n) {
             ms.put(j, ns(j))
             if (!xs(j)) {
               if (subsetOfUpTo(ns(j), j, xs)) {
                 val xs_j = xs + j
                 if (inclusionIdeal(xs_j)) {
-                  val ys = measureExecutionTime({ closure(xs_j) }, "\rFCbO: " + closures.size + " closures computed so far.  Last closure computation took ")
+//                  val ys = printExecutionTime({ closure(xs_j) }, "\rFCbO: " + closures.size + " closures computed so far.  Last closure computation took ")
+//                  val ys = writeExecutionTime({ closure(xs_j) }, valueLogger.logValue)
+                  val ys = closure(xs_j)
                   if (subsetOfUpTo(xs, j, ys) && subsetOfUpTo(ys, j, xs))
                     queue.enqueue((ys, j))
                   //            if (xs.forall(x => x >= j || ys(x)) && ys.forall(y => y >= j || xs(y)))
@@ -74,7 +80,7 @@ object FCbO {
           }
         }
 
-        FCbO(collection.BitSet.empty, 1, _ => collection.BitSet.empty)
+        FCbO(collection.BitSet.empty, 0, _ => collection.BitSet.empty)
 
 //    val outerDeque = mutable.ArrayDeque[(collection.BitSet, Int, Int => collection.BitSet)]()
 ////    outerDeque.prepend((collection.BitSet.empty, 1, (_: Int) => collection.BitSet.empty))
@@ -112,7 +118,7 @@ object FCbO {
 //      outerDeque.prependAll(innerQueue.map((ys, j) => (ys, j + 1, ms)))
 //    }
 
-    println()
+    logger.println()
 
     closures
 

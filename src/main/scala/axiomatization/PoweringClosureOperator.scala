@@ -25,6 +25,9 @@ class PoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLObjectPropert
 
   def apply(xs: collection.BitSet): collection.BitSet = {
 
+//    if (xs.max >= reduction.nodes().size)
+//      throw new IllegalArgumentException()
+
     val powering = HashGraph[collection.BitSet, OWLClass, OWLObjectProperty]()
 
     @tailrec

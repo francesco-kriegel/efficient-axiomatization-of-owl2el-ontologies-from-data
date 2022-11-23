@@ -4,13 +4,13 @@ package axiomatization
 import org.phenoscape.scowl.*
 import org.semanticweb.owlapi.apibinding.OWLManager
 import org.semanticweb.owlapi.model.parameters.Imports
-import org.semanticweb.owlapi.model.{IRI, NodeID, OWLAnonymousIndividual, OWLClass, OWLClassExpression, OWLIndividual, OWLLogicalAxiom, OWLNamedIndividual, OWLObjectProperty, OWLObjectSomeValuesFrom}
+import org.semanticweb.owlapi.model.{IRI, NodeID, OWLAnonymousIndividual, OWLClass, OWLClassExpression, OWLDocumentFormat, OWLIndividual, OWLLogicalAxiom, OWLNamedIndividual, OWLObjectProperty, OWLObjectSomeValuesFrom}
 import uk.ac.manchester.cs.owl.owlapi.{OWLAnonymousIndividualImpl, OWLNamedIndividualImpl}
 
-import java.io.{BufferedReader, BufferedWriter, File, FileReader, FileWriter}
+import java.io.{BufferedReader, BufferedWriter, File, FileOutputStream, FileReader, FileWriter}
 import java.text.SimpleDateFormat
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.{AtomicInteger, AtomicReference}
 import scala.annotation.tailrec
 import scala.collection.immutable.BitSet
 import scala.collection.mutable
@@ -21,302 +21,451 @@ import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
 import scala.jdk.CollectionConverters.*
 import de.tu_dresden.inf.lat.axiomatization.Interpretation
-import de.tu_dresden.inf.lat.axiomatization.IncrementalPoweringClosureOperator
-import de.tu_dresden.inf.lat.axiomatization.Util.{GLOBAL_COUNTER, LocalSet, fixedPoint, formatTime, measureExecutionTime, intersectionOfBitSets}
+import de.tu_dresden.inf.lat.axiomatization.PoweringClosureOperator_Incremental
+import de.tu_dresden.inf.lat.axiomatization.Util.{LocalSet, fixedPoint, formatTime, intersectionOfBitSets, measureExecutionTime}
 import org.semanticweb.elk.owlapi.ElkReasonerFactory
+import org.semanticweb.owlapi.formats.ManchesterSyntaxDocumentFormat
 
 
-type M = OWLClass | (OWLObjectProperty, collection.BitSet)
+class ObjectSomeValuesFromMMSC(val property: OWLObjectProperty, val mmsc: collection.BitSet) {}
+
+object ObjectSomeValuesFromMMSC {
+  def unapply(x: ObjectSomeValuesFromMMSC): Option[(OWLObjectProperty, collection.BitSet)] = {
+    Some((x.property, x.mmsc))
+  }
+}
+
+//type M = OWLClass | (OWLObjectProperty, collection.BitSet)
+type M = OWLClass | ObjectSomeValuesFromMMSC
 type Mx = M | OWLObjectSomeValuesFrom
 type BitImplication = (collection.BitSet, collection.BitSet)
 
-val withDisjointnessAxioms = false
+enum WhichDisjointnessAxioms:
+  case None, Fast, Canonical
 
 object Axiomatization {
 
-  def run(ontologyFile: File, ont: String): Unit = {
+  def run(ontologyFile: File,
+          ont: String,
+          whichDisjointnessAxioms: WhichDisjointnessAxioms = WhichDisjointnessAxioms.None,
+          onlyComputeReduction: Boolean = false)
+         (using logger: Logger): Unit = {
 
-    val startTime = System.currentTimeMillis()
+
+    val withDisjointnessAxioms = !(whichDisjointnessAxioms equals WhichDisjointnessAxioms.None)
+    val canonicalDisjointnessAxioms = whichDisjointnessAxioms equals WhichDisjointnessAxioms.Canonical
+    val reducedOntologyFilename = "ore2015_pool_sample_experiments/files/" + ont + "_reduced.owl"
+    val statisticsFilename = "ore2015_pool_sample_experiments/statistics/" + ont + ".csv"
+    val resultsFilename = "ore2015_pool_sample_experiments/results/" + ont + ".csv"
+    val reducedOntologyFile = File(reducedOntologyFilename)
+    val reductionHasBeenPrecomputed = reducedOntologyFile.exists()
+
+    lazy val statisticsFromFile: Array[String] = {
+      val reader = new BufferedReader(new FileReader(statisticsFilename))
+      val statistics = reader.readLine().split(';')//.map(_.toLong)
+      reader.close()
+      statistics
+    }
+
+    def writeResults(string: String): Unit = {
+      val writer = new BufferedWriter(new FileWriter(resultsFilename, true))
+      writer.write(string)
+      writer.newLine()
+      writer.flush()
+      writer.close()
+    }
+
+
+
+    /* *************************** */
+    /* START: Initialization Phase */
+    /* *************************** */
+
+    logger.println(
+      "\n\n" +
+      "*******************************\n" +
+      "* START: Initialization Phase *\n" +
+      "*******************************\n"
+    )
+
+    val startTime0 = System.currentTimeMillis()
 
     val manager = OWLManager.createOWLOntologyManager()
-    val ontology = manager.loadOntologyFromOntologyDocument(ontologyFile)
-
+    val ontology = manager.loadOntologyFromOntologyDocument(if reductionHasBeenPrecomputed then reducedOntologyFile else ontologyFile)
     val graph = Interpretation.loadFromOntologyFile(ontology)
-    println(graph.nodes().size + " individuals")
+    val elbotTBox =
+      if reductionHasBeenPrecomputed
+      then ontology.tboxAxioms(Imports.INCLUDED).toScala(LazyList).toList
+      else EL.extractELTBox(ontology, false, true).toList
 
-    val (reduction, _, _) = Interpretation.reductionOf(graph)
+    val measurement_ComputationTime_LoadOntology =
+      if reductionHasBeenPrecomputed
+      then statisticsFromFile(2).toLong
+      else System.currentTimeMillis() - startTime0
+    logger.println("Loading the ontology took " + formatTime(measurement_ComputationTime_LoadOntology))
 
-//    def isEL(classExpression: OWLClassExpression): Boolean =
-//      classExpression.conjunctSet().allMatch({
-//        case owlClass @ Class(_) if !(owlClass equals OWLNothing) => true
-//        case ObjectSomeValuesFrom(_ @ ObjectProperty(_), filler) => isEL(filler)
-//        case _ => false
-//      })
+    if (reductionHasBeenPrecomputed && !(graph.sizeCode() equals statisticsFromFile(4)))
+      logger.errPrintln("Size code was: " + statisticsFromFile(4))
+      logger.errPrintln("Size code is:  " + graph.sizeCode())
+      throw new RuntimeException("Something went wrong with writing and then reading the reduction.")
 
-    val elOntology = manager.createOntology()
+    val measurement_Number_ObjectsInDomain =
+      if reductionHasBeenPrecomputed
+      then statisticsFromFile(0).toInt
+      else graph.nodes().size
+    logger.println(measurement_Number_ObjectsInDomain + " individuals")
 
-    def getELSubExpression(classExpression: OWLClassExpression): OWLClassExpression = {
-//      classExpression.conjunctSet().toScala(LazyList).collect({
-//        case owlClass @ Class(_) if !(owlClass equals OWLNothing) => owlClass
-//        case ObjectSomeValuesFrom(property @ ObjectProperty(_), filler) => ObjectSomeValuesFrom(property, getELSubExpression(filler))
-//      }).fold(OWLThing)(_ and _)
-      val operands =
-        classExpression.conjunctSet().toScala(LazyList).collect({
-          case owlClass@Class(_) if !(owlClass equals OWLNothing) => owlClass
-          case ObjectSomeValuesFrom(property@ObjectProperty(_), filler) => ObjectSomeValuesFrom(property, getELSubExpression(filler))
-        }).toSet
-      if (operands.isEmpty)
-        OWLThing
-      else if (operands.size equals 1)
-        operands.head
-      else
-        ObjectIntersectionOf(operands)
-    }
 
-    // TODO: convert all supported axioms to SubClassOf axioms (later code can then be simplified)
-    val elTBox = ontology.tboxAxioms(Imports.INCLUDED).toScala(LazyList).collect({
-      case SubClassOf(_, premise, conclusion) =>
-        SubClassOf(getELSubExpression(premise), getELSubExpression(conclusion))
-      case ObjectPropertyDomain(_, property @ ObjectProperty(_), classExpression) =>
-        ObjectPropertyDomain(property, getELSubExpression(classExpression))
-//        SubClassOf(ObjectSomeValuesFrom(property, OWLThing), getELSubExpression(classExpression))
-      case EquivalentClasses(_, classExpressions) =>
-        EquivalentClasses(classExpressions.map(getELSubExpression(_)))
-    }).toList
 
-    println(elTBox.size + " EL concept inclusions in the TBox")
-    println(elTBox.filter(_.nestedClassExpressions().toScala(LazyList).exists(_.isOWLNothing)).size + " CIs with OWLNothing.")
 
-    elOntology.addAxioms(elTBox : _*)
 
-    val _representativeOf = mutable.HashMap[OWLClassExpression, OWLClass]()
-    val _representedBy = mutable.HashMap[OWLClass, OWLClassExpression]()
+    val ((reduction, _, _), measurement_ComputationTime_FirstReduction) =
+      if reductionHasBeenPrecomputed
+      then ((graph, PartialFunction.empty, PartialFunction.empty), statisticsFromFile(3).toLong)
+      else measureExecutionTime { Interpretation.reductionOf(graph) }
+    logger.println("Reducing the input interpretation took " + formatTime(measurement_ComputationTime_FirstReduction))
 
-    def representativeOf(classExpression: OWLClassExpression): OWLClass = {
-      classExpression match
-        case c @ Class(_) => c
-        case c => _representativeOf(c)
-    }
+    val measurement_Number_ObjectsInReducedDomain =
+      if reductionHasBeenPrecomputed
+      then statisticsFromFile(1).toInt
+      else reduction.nodes().size
 
-    def representedBy(clazz: OWLClass): OWLClassExpression = {
-      _representedBy.getOrElse(clazz, clazz)
-    }
+    if (!reductionHasBeenPrecomputed) {
 
-    def isRepresentative(clazz: OWLClass): Boolean = {
-      _representedBy.contains(clazz)
-    }
-
-    def addRepresentative(classExpression: OWLClassExpression): Boolean = {
-      classExpression match
-        case _ @ Class(_) => false
-        case _ =>
-          if (!_representativeOf.contains(classExpression)) {
-            val representative = Class("internal_representative_class_for#" + classExpression)
-            _representativeOf(classExpression) = representative
-            _representedBy(representative) = classExpression
-            elOntology.addAxiom(EquivalentClasses(classExpression, representative))
-            true
-          } else {
-            false
-          }
-    }
-
-    def collectSubClassExpressions(classExpression: OWLClassExpression): Unit = {
-      classExpression.conjunctSet().toScala(LazyList).foreach({
-        case _ @ Class(_) => {}
-        case existentialRestriction @ ObjectSomeValuesFrom(_ @ ObjectProperty(_), filler) =>
-          // TODO: Why does the 'if' protection not work?
-//          if (addRepresentative(existentialRestriction))
-//            if (addRepresentative(filler))
-          addRepresentative(existentialRestriction)
-          addRepresentative(filler)
-              collectSubClassExpressions(filler)
-      })
-    }
-
-    elTBox.foreach({
-      case SubClassOf(_, premise, classExpression) =>
-        // TODO: Is all of the premise needed?
-//        premise.conjunctSet().toScala(LazyList).foreach({
-//          case ObjectSomeValuesFrom(_, filler) => addRepresentative(filler) // only needed for method "premiseMatches"
-//          case _ => {}
-//        })
-        collectSubClassExpressions(premise)
-        collectSubClassExpressions(classExpression)
-      case ObjectPropertyDomain(_, property @ ObjectProperty(_), classExpression) =>
-        // TODO: Is this needed?
-        collectSubClassExpressions(ObjectSomeValuesFrom(property, OWLThing))
-        collectSubClassExpressions(classExpression)
-      case EquivalentClasses(_, classExpressions) =>
-        classExpressions.foreach(collectSubClassExpressions(_))
-    })
-
-    val individualFor = new Array[OWLNamedIndividual](reduction.nodes().size)
-    def nodeFor(individual: OWLNamedIndividual): Int = {
-      individual.getIRI.toString.substring(39).toInt
-    }
-    reduction.nodes().foreach(node => {
-      individualFor(node) = Individual("internal_representative_individual_for#" + node)
-    })
-    reduction.nodes().foreach(node => {
-      reduction.labels(node).foreach(label => {
-        elOntology.addAxiom(ClassAssertion(label, individualFor(node)))
-      })
-      reduction.predecessors(node).foreach((relation, pred) => {
-        elOntology.addAxiom(ObjectPropertyAssertion(relation, individualFor(pred), individualFor(node)))
-      })
-    })
-
-    val elkReasoner = ElkReasonerFactory().createNonBufferingReasoner(elOntology)
-    elkReasoner.precomputeInferences()
-    elkReasoner.flush()
-
-    def elkReasoner_subsumers(classExpression: OWLClassExpression): LazyList[OWLClass] = {
-      elkReasoner.equivalentClasses(classExpression).toScala(LazyList) concat elkReasoner.superClasses(classExpression).toScala(LazyList)
-    }
-
-    def elkReasoner_types(individual: OWLNamedIndividual): LazyList[OWLClass] = {
-      elkReasoner.types(individual).toScala(LazyList)
-    }
-
-    def inferredLabels(node: Int | OWLClassExpression): LazyList[OWLClass] = {
-      node match
-        case node : Int =>
-          elkReasoner_types(individualFor(node)).filter(!isRepresentative(_))
-        case node : OWLClassExpression =>
-          elkReasoner_subsumers(representativeOf(node)).filter(!isRepresentative(_))
-    }
-
-    def inferredSuccessors(node: Int | OWLClassExpression): LazyList[(OWLObjectProperty, Int | OWLClassExpression)] = {
-      node match
-        case node : Int =>
-          LazyList.from(
-            reduction
-              .successorRelations(node)
-              .flatMap(property => reduction.successorsForRelation(node, property).map(succ => (property, succ)))
-          ) concat (
-            elkReasoner_types(individualFor(node))
-              .filter(isRepresentative)
-              .map(representedBy)
-              .collect({ case ObjectSomeValuesFrom(property @ ObjectProperty(_), filler) => (property, filler) })
-          )
-        case node : OWLClassExpression =>
-          elkReasoner_subsumers(representativeOf(node))
-            .filter(isRepresentative)
-            .map(representedBy)
-            .collect({ case ObjectSomeValuesFrom(property @ ObjectProperty(_), filler) => (property, filler) })
-    }
-
-    val canonicalModel = BitGraph[OWLClass, OWLObjectProperty]()
-
-    canonicalModel.labels().addAll(reduction.labels())
-    canonicalModel.relations().addAll(reduction.relations())
-
-    val _numberOf = mutable.HashMap[OWLClassExpression, Int]()
-    val _withNumber = mutable.HashMap[Int, OWLClassExpression]() // new Array[OWLClassExpression]()
-    var k = reduction.nodes().size - 1
-    def numberOf(node: Int | OWLClassExpression): Int = {
-      node match
-        case node : Int => node
-        case node : OWLClassExpression => _numberOf.getOrElseUpdate(node, { k += 1; _withNumber.update(k, node); k })
-    }
-    def withNumber(i: Int): Int | OWLClassExpression = {
-      _withNumber.getOrElse(i, i)
-    }
-
-    @tailrec
-    def insertIntoCanonicalModel(nodes: Iterable[Int | OWLClassExpression]): Unit = {
-      val succs = mutable.ListBuffer[Int | OWLClassExpression]()
-      for (node <- nodes) {
-        val i = numberOf(node)
-        if (!canonicalModel.nodes().contains(i)) {
-          canonicalModel.addNode(i)
-          canonicalModel.addLabels(i, inferredLabels(node))
-          inferredSuccessors(node).foreach((property, succ) => {
-            val j = numberOf(succ)
-            canonicalModel.addEdge(i, property, j)
-            succs.addOne(succ)
-          })
-        }
+      val variables = new Array[OWLAnonymousIndividual](reduction.nodes().size)
+      reduction.nodes() foreach {
+        variables(_) = new OWLAnonymousIndividualImpl(NodeID.getNodeID())
       }
-      if (succs.nonEmpty)
-        insertIntoCanonicalModel(succs)
+      val store = manager.createOntology()
+      reduction.labels().map(Declaration(_)).foreach(store.add)
+      reduction.relations().map(Declaration(_)).foreach(store.add)
+      reduction.nodes().foreach(node => {
+        if (reduction.labels(node).isEmpty && reduction.predecessors(node).isEmpty)
+          store.add(ClassAssertion(OWLThing, variables(node)))
+        reduction.labels(node).map(ClassAssertion(_, variables(node))).foreach(store.add)
+        reduction.predecessors(node).map((property, pred) => ObjectPropertyAssertion(property, variables(pred), variables(node))).foreach(store.add)
+      })
+      store.add(elbotTBox: _*)
+//      store.addAxioms(ontology.tboxAxioms(Imports.INCLUDED))
+      val stream = new FileOutputStream(reducedOntologyFilename)
+      manager.saveOntology(store, ManchesterSyntaxDocumentFormat(), stream)
+      stream.close()
+
+      val statWriter = new BufferedWriter(new FileWriter(statisticsFilename))
+      statWriter.write(
+        measurement_Number_ObjectsInDomain + ";" +
+          measurement_Number_ObjectsInReducedDomain + ";" +
+          measurement_ComputationTime_LoadOntology + ";" +
+          measurement_ComputationTime_FirstReduction + ";" +
+          reduction.sizeCode()
+      )
+      statWriter.flush()
+      statWriter.close()
+
     }
 
-    insertIntoCanonicalModel(reduction.nodes())
+    if (onlyComputeReduction) {
+      System.exit(0)
+    }
 
-    val (reducedCanonicalModel, _rcmRepresentedBy, _rcmRepresentativeOf) = Interpretation.reductionOf(canonicalModel, true)
+    val startTime = System.currentTimeMillis() - (measurement_ComputationTime_LoadOntology + measurement_ComputationTime_FirstReduction)
+
+//    val elTBox = EL.extractELTBox(ontology, false, withDisjointnessAxioms).toList
+    val elTBox =
+      if withDisjointnessAxioms
+      then elbotTBox
+      else elbotTBox.filter(axiom => !axiom.nestedClassExpressions().toScala(LazyList).contains(OWLNothing))
+
+    //    val measurement_TBoxCardinality = elTBox.size
+//    logger.println(measurement_TBoxCardinality + " EL concept inclusions in the TBox")
+////    logger.println(elTBox.filter(_.nestedClassExpressions().toScala(LazyList).exists(_.isOWLNothing)).size + " CIs with OWLNothing.")
+//    val measurement_NumberOfDisjointnessAxiomsInTBox =
+//      elTBox.map({
+//        case SubClassOf(_, _, conclusion) =>
+//          if conclusion equals OWLNothing then 1 else 0
+//        case ObjectPropertyDomain(_, _, conclusion) =>
+//          if conclusion equals OWLNothing then 1 else 0
+//        case EquivalentClasses(_, operands) =>
+//          operands.count(_ equals OWLNothing)
+//      }).sum
+
+    var measurement_Number_AxiomsInTBox = 0
+    var measurement_Number_DisjointnessAxiomsInTBox = 0
+    elTBox.foreach({
+      case SubClassOf(_, _, conclusion) =>
+        measurement_Number_AxiomsInTBox += 1
+        if (conclusion equals OWLNothing)
+          measurement_Number_DisjointnessAxiomsInTBox += 1
+      case ObjectPropertyDomain(_, _, conclusion) =>
+        measurement_Number_AxiomsInTBox += 1
+        if (conclusion equals OWLNothing)
+          measurement_Number_DisjointnessAxiomsInTBox += 1
+      case EquivalentClasses(_, operands) =>
+        measurement_Number_AxiomsInTBox += operands.size
+        measurement_Number_DisjointnessAxiomsInTBox += operands.count(_ equals OWLNothing)
+    })
+
+
+
+
+    val elk = ELK(reduction, elTBox, manager)
+
+    if (!elk.reasoner.isConsistent) {
+      writeResults(ont + ";" + whichDisjointnessAxioms + ";Inconsistent;;;;;;;;;;;;;;;;;;;;;;;;;")
+      System.exit(0)
+    }
+
+
+
+    var (reducedCanonicalModel, _rcmRepresentedBy, _rcmRepresentativeOf) = Interpretation.reductionOf(elk.canonicalModel, true)
     val n = reducedCanonicalModel.nodes().size
+    val measurement_Number_ObjectsInReducedCanonicalModel = n
+
+//    def rcmRepresentedBy(i: Int): collection.Set[Int | OWLClassExpression] = {
+//      _rcmRepresentedBy(i).unsorted.map(elk.withNumber)
+//    }
+//    def rcmRepresentativeOf(node: Int | OWLClassExpression): Int = {
+//      _rcmRepresentativeOf(elk.numberOf(node))
+//    }
+//    def rcmRepresentsIndividual(i: Int): Boolean = {
+//      rcmRepresentedBy(i).exists({ case _ : Int => true; case _ => false})
+//    }
+//    def rcmRepresentsClassExpression(i: Int): Boolean = {
+//      rcmRepresentedBy(i).exists({ case _ : OWLClassExpression => true; case _ => false})
+//    }
+
+    val nodesWithPredecessor = reducedCanonicalModel.nodes().filter(reducedCanonicalModel.predecessors(_).nonEmpty)
+    val nodesWithoutPredecessor = reducedCanonicalModel.nodes() diff nodesWithPredecessor
+    val remapToRCM = new Array[Int](n)
+    val remapFromRCM = new Array[Int](n)
+    var j = 0
+    nodesWithPredecessor.foreach(i => {
+      remapToRCM(j) = i; remapFromRCM(i) = j; j += 1
+    })
+    nodesWithoutPredecessor.foreach(i => {
+      remapToRCM(j) = i; remapFromRCM(i) = j; j += 1
+    })
+    val remappedRCM = BitGraph[OWLClass, OWLObjectProperty]()
+    remappedRCM.labels().addAll(reducedCanonicalModel.labels())
+    remappedRCM.relations().addAll(reducedCanonicalModel.relations())
+    (0 until n).foreach(i => {
+      remappedRCM.addNode(i)
+      remappedRCM.addLabels(i, reducedCanonicalModel.labels(remapToRCM(i)))
+      reducedCanonicalModel.predecessors(remapToRCM(i)).foreach((r, j) => {
+        remappedRCM.addEdge(remapFromRCM(j), r, i)
+      })
+    })
+
+    reducedCanonicalModel = remappedRCM
 
     def rcmRepresentedBy(i: Int): collection.Set[Int | OWLClassExpression] = {
-      _rcmRepresentedBy(i).unsorted.map(withNumber)
+      _rcmRepresentedBy(remapToRCM(i)).unsorted.map(elk.withNumber)
     }
 
     def rcmRepresentativeOf(node: Int | OWLClassExpression): Int = {
-      _rcmRepresentativeOf(numberOf(node))
+      remapFromRCM(_rcmRepresentativeOf(elk.numberOf(node)))
     }
 
     def rcmRepresentsIndividual(i: Int): Boolean = {
-      rcmRepresentedBy(i).exists({ case _ : Int => true; case _ => false})
+      rcmRepresentedBy(i).exists({ case _: Int => true; case _ => false })
     }
 
     def rcmRepresentsClassExpression(i: Int): Boolean = {
-      rcmRepresentedBy(i).exists({ case _ : OWLClassExpression => true; case _ => false})
+      rcmRepresentedBy(i).exists({ case _: OWLClassExpression => true; case _ => false })
     }
 
-    println("Computing closures...")
-    //    val closures = FCbO.computeAllClosures(n, IncrementalPoweringClosureOperator(reduction))
-    val closures = FCbO.computeAllClosures(n, PoweringClosureOperator(reducedCanonicalModel))
-    println(closures.size + " closures")
-    GLOBAL_COUNTER.reset()
+    val measurement_ComputationTime_Initialization = System.currentTimeMillis() - startTime
+    logger.println("The initialization phase took " + formatTime(measurement_ComputationTime_Initialization))
 
-    val cxt = InducedFormalContext(reducedCanonicalModel, rcmRepresentsIndividual, closures)
+    logger.println(
+      "\n\n" +
+      "*****************************\n" +
+      "* END: Initialization Phase *\n" +
+      "*****************************\n"
+    )
 
-    measureExecutionTime({
+    /* ************************* */
+    /* END: Initialization Phase */
+    /* ************************* */
+
+
+
+
+
+
+
+
+
+
+    /* *********************************************************** */
+    /* START: Computing all closures of the reduced interpretation */
+    /* *********************************************************** */
+
+    logger.println(
+      "\n\n" +
+      "***************************************************************\n" +
+      "* START: Computing all closures of the reduced interpretation *\n" +
+      "***************************************************************\n"
+    )
+
+    logger.println("Computing closures...")
+
+    def isOccupiedAttribute(ms: collection.BitSet): Boolean = {
+//      ms.exists(m => reducedCanonicalModel.predecessors(m).exists((_,p) => rcmRepresentsIndividual(p)))
+      ms.exists(m => reducedCanonicalModel.predecessors(m).nonEmpty)
+    }
+//    given valueLogger: ValueLogger = FileValueLogger("ore2015_pool_sample_experiments/closures/" + ont + ".csv", whichDisjointnessAxioms.toString)
+    val (closures, measurement_ComputationTime_Closures) = measureExecutionTime {
+      if (withDisjointnessAxioms)
+        FCbO.computeAllClosures(n, PoweringClosureOperator(reducedCanonicalModel))
+      else
+        FCbO.computeAllClosures(n, PoweringClosureOperator(reducedCanonicalModel), isOccupiedAttribute)
+    }
+//    valueLogger.close()
+    val measurement_Number_Closures = closures.size
+    logger.println("FCbO computed " + measurement_Number_Closures + " closures in " + formatTime(measurement_ComputationTime_Closures))
+    logger.println()
+    logger.reset()
+
+    logger.println(
+      "\n\n" +
+      "*************************************************************\n" +
+      "* END: Computing all closures of the reduced interpretation *\n" +
+      "*************************************************************\n"
+    )
+
+    /* ********************************************************* */
+    /* END: Computing all closures of the reduced interpretation */
+    /* ********************************************************* */
+
+
+
+
+
+
+
+
+
+
+    /* ******************************************* */
+    /* START: Computing the induced formal context */
+    /* ******************************************* */
+
+    logger.println(
+      "\n\n" +
+      "***********************************************\n" +
+      "* START: Computing the induced formal context *\n" +
+      "***********************************************\n"
+    )
+
+    val (cxt, measurement_ComputationTime_InducedContext) = measureExecutionTime {
+      val cxt = InducedFormalContext(reducedCanonicalModel, rcmRepresentsIndividual, closures, whichDisjointnessAxioms)
       cxt.objects
-      cxt.occupiedAttributes
-      cxt.occupiedAttributeIndex
-      cxt.bitsOccupiedAttributes
-      cxt.occupiedIncidenceMatrix
-    }, "Computing the induced context took ")
+      cxt.activeAttributes
+      cxt.activeAttributeIndex
+      cxt.bitsActiveAttributes
+      cxt.activeIncidenceMatrix
+//      if (withDisjointnessAxioms) {
+//        cxt.unsatisfiableAttributes
+//      }
+      cxt
+    }
+    logger.println("Computing the induced context took " + formatTime(measurement_ComputationTime_InducedContext))
 
-    println()
+    val measurement_Number_AttributesInInducedContext =
+      if (withDisjointnessAxioms)
+        cxt.attributes.length
+      else
+        cxt.activeAttributes.length
+
+    val measurement_Number_ActiveAttributesInInducedContext =
+      cxt.activeAttributes.length
+
+    val measurement_Number_FastDisjointnessAxioms =
+      measurement_Number_AttributesInInducedContext - measurement_Number_ActiveAttributesInInducedContext
+
+    logger.println("There are " + measurement_Number_AttributesInInducedContext + " attributes")
+    logger.println("and there are " + measurement_Number_ActiveAttributesInInducedContext + " occupied attributes.")
+
+    logger.println(
+      "\n\n" +
+      "*********************************************\n" +
+      "* END: Computing the induced formal context *\n" +
+      "*********************************************\n"
+    )
+
+    /* ***************************************** */
+    /* END: Computing the induced formal context */
+    /* ***************************************** */
 
 
 
+
+
+
+
+
+
+
+    /* ********************************************* */
+    /* START: Computation of background implications */
+    /* ********************************************* */
+
+    logger.println(
+      "\n\n" +
+      "*************************************************\n" +
+      "* START: Computation of background implications *\n" +
+      "*************************************************\n"
+    )
+
+    val startBackgroundImplications = System.currentTimeMillis()
+    // TODO: Split the additional attributes into
+    // TODO: (1) concept names
+    // TODO: (2) existential restrictions in a premise
+    // TODO: (3) existential restrictions in a conclusion
 
     val _additionalAttributes = mutable.HashSet[OWLClass | OWLObjectSomeValuesFrom]()
     val f: PartialFunction[OWLClassExpression, OWLClass | OWLObjectSomeValuesFrom] = {
       case c@Class(_) if !c.isOWLThing => c
       case c@ObjectSomeValuesFrom(_, _) => c
     }
+    val existentialRestrictionsInConclusions = mutable.HashSet[OWLObjectSomeValuesFrom]()
+    val g: PartialFunction[OWLClassExpression, OWLObjectSomeValuesFrom] = {
+      case c@ObjectSomeValuesFrom(_, _) => c
+    }
     elTBox.foreach({
       case SubClassOf(_, premise, conclusion) => {
         _additionalAttributes.addAll(premise.conjunctSet().toScala(LazyList).collect(f))
         _additionalAttributes.addAll(conclusion.conjunctSet().toScala(LazyList).collect(f))
+        existentialRestrictionsInConclusions.addAll(conclusion.conjunctSet().toScala(LazyList).collect(g))
       }
       case ObjectPropertyDomain(_, property@ObjectProperty(_), conclusion) => {
         _additionalAttributes.add(ObjectSomeValuesFrom(property, OWLThing))
         _additionalAttributes.addAll(conclusion.conjunctSet().toScala(LazyList).collect(f))
+        existentialRestrictionsInConclusions.addAll(conclusion.conjunctSet().toScala(LazyList).collect(g))
       }
       case EquivalentClasses(_, operands) => {
-        operands.foreach(op => _additionalAttributes.addAll(op.conjunctSet().toScala(LazyList).collect(f)))
+        operands.foreach(op => {
+          _additionalAttributes.addAll(op.conjunctSet().toScala(LazyList).collect(f))
+          existentialRestrictionsInConclusions.addAll(op.conjunctSet().toScala(LazyList).collect(g))
+        })
       }
     })
 
-    // TODO: should be inserted later, after the reduction of the canonical model
-    insertIntoCanonicalModel(_additionalAttributes.collect({
+    // TODO: build the TBox saturation only from the fillers in conclusions
+    elk.insertIntoCanonicalModel(_additionalAttributes.collect({
+//    elk.insertIntoCanonicalModel(existentialRestrictionsInConclusions.collect({
       case ObjectSomeValuesFrom(_, filler) => filler
     }))
 
-    val (reducedCanonicalModel2, _rcmRepresentedBy2, _rcmRepresentativeOf2) = Interpretation.reductionOf(canonicalModel, true)
+    val (reducedCanonicalModel2, _rcmRepresentedBy2, _rcmRepresentativeOf2) = Interpretation.reductionOf(elk.canonicalModel, true)
 
     def rcmRepresentedBy2(i: Int): collection.Set[Int | OWLClassExpression] = {
-      _rcmRepresentedBy2(i).unsorted.map(withNumber)
+      _rcmRepresentedBy2(i).unsorted.map(elk.withNumber)
     }
 
     def rcmRepresentativeOf2(node: Int | OWLClassExpression): Int = {
-      _rcmRepresentativeOf2(numberOf(node))
+      _rcmRepresentativeOf2(elk.numberOf(node))
     }
 
     def rcmRepresentsIndividual2(i: Int): Boolean = {
@@ -330,8 +479,6 @@ object Axiomatization {
     val tboxSaturation = BitGraph[OWLClass, OWLObjectProperty]()
     tboxSaturation.labels().addAll(reducedCanonicalModel2.labels())
     tboxSaturation.relations().addAll(reducedCanonicalModel2.relations())
-
-    val startBackgroundImplications = System.currentTimeMillis()
 
     @tailrec
     def insertIntoTBoxSaturation(nodes: Iterable[Int]): Unit = {
@@ -356,20 +503,22 @@ object Axiomatization {
 
     insertIntoTBoxSaturation(reducedCanonicalModel2.nodes().filter(rcmRepresentsClassExpression2))
 
-    val clop = PoweringClosureOperator(tboxSaturation)
+//    val clop = PoweringClosureOperator(tboxSaturation)
+    val clop = PoweringClosureOperator_CachedValues(tboxSaturation)
+//    val clop = PoweringClosureOperator_Incremental(tboxSaturation)
 
     def simulates(succ: collection.BitSet | OWLClassExpression, filler: OWLClassExpression): Boolean = {
       succ match
-        case succ: BitSet =>
+        case succ: collection.BitSet =>
           succ.forall(i => {
             rcmRepresentedBy(i).head match
               case j: Int =>
-                elkReasoner_types(individualFor(j)).contains(representativeOf(filler))
+                elk.types(elk.individualFor(j)).contains(elk.representativeOf(filler))
               case c: OWLClassExpression =>
-                elkReasoner_subsumers(representativeOf(c)).contains(representativeOf(filler))
+                elk.subsumers(elk.representativeOf(c)).contains(elk.representativeOf(filler))
           })
         case succ: OWLClassExpression =>
-          elkReasoner_subsumers(representativeOf(succ)).contains(representativeOf(filler))
+          elk.subsumers(elk.representativeOf(succ)).contains(elk.representativeOf(filler))
     }
 
     // optimized version of dlClosure:
@@ -382,23 +531,27 @@ object Axiomatization {
     // (4)  {(r,X)} → {(r,Y)}  if  X⊆Y
     // (5)   {∃r.C} → {(r,X)}  if  C simulates X, i.e., there is a simulation from (𝔓(𝓘),X) to (𝓘_𝓣,C)
 
-    val extendedAttributeSet: Array[Mx] = cxt.occupiedAttributes ++ _additionalAttributes
+    val extendedAttributeSet: Array[Mx] = cxt.activeAttributes ++ _additionalAttributes
     val extendedAttributeIndex = mutable.HashMap[Mx, Int]()
     (0 until extendedAttributeSet.length).foreach(i => {
       extendedAttributeIndex.update(extendedAttributeSet(i), i)
     })
 
-    val backgroundImplications = mutable.HashSet[BitImplication]()
+    logger.reset()
+    logger.println("Enumerating background implications...")
+    val _backgroundImplications = ConcurrentLinkedQueue[BitImplication]()
 
-
-    backgroundImplications.addOne((BitSet(0), BitSet.fromSpecific(1 until extendedAttributeSet.length)))
+    if (withDisjointnessAxioms)
+      _backgroundImplications.add(BitSet(0) -> BitSet.fromSpecific(1 until extendedAttributeSet.length))
+      logger.tick()
     //    backgroundImplications.addOne((BitSet(0), BitSet.fromSpecific(1 until cxt.occupiedAttributes.length)))
     //    (1 until extendedAttributeSet.length).foreach(i => {
     //      backgroundImplications.addOne((BitSet(0), BitSet(i)))
     //    })
 
-    extendedAttributeSet.foreach({
-      case pair1 @ (property1: OWLObjectProperty, mmsc1: collection.BitSet) => {
+    extendedAttributeSet.par.foreach({
+//      case pair1 @ (property1: OWLObjectProperty, mmsc1: collection.BitSet) => {
+      case pair1 @ ObjectSomeValuesFromMMSC(property1, mmsc1) => {
 //        extendedAttributeSet.foreach({
 //          case pair2 @ (property2: OWLObjectProperty, mmsc2: collection.BitSet) if property1 equals property2 => {
 //            // (4)  {(r,X)} → {(r,Y)}  if  X⊆Y
@@ -416,15 +569,18 @@ object Axiomatization {
         val cs = extendedAttributeSet.collect({
           // (4)  {(r,X)} → {(r,Y)}  if  X⊆Y
           // use iPred
-          case pair2@(property2: OWLObjectProperty, mmsc2: collection.BitSet)
+//          case pair2 @ (property2: OWLObjectProperty, mmsc2: collection.BitSet)
+          case pair2 @ ObjectSomeValuesFromMMSC(property2, mmsc2)
             if (property1 equals property2) && (mmsc1 subsetOf mmsc2) => extendedAttributeIndex(pair2)
 
+          // TODO: It suffices to consider the existential restrictions ∃r.C in premises
           // (1)  {(r,X)} → {∃r.C}   if  simulates(X, C) == true
-          case exr2@ObjectSomeValuesFrom(property2@ObjectProperty(_), filler2)
+          case exr2 @ ObjectSomeValuesFrom(property2 @ ObjectProperty(_), filler2)
             if (property1 equals property2) && (simulates(mmsc1, filler2)) => extendedAttributeIndex(exr2)
         })
         if (cs.nonEmpty)
-          backgroundImplications.addOne((BitSet(extendedAttributeIndex(pair1)), BitSet.fromSpecific(cs)))
+          _backgroundImplications.add(BitSet(extendedAttributeIndex(pair1)) -> BitSet.fromSpecific(cs))
+          logger.tick()
       }
       case exr1 @ ObjectSomeValuesFrom(property1 @ ObjectProperty(_), filler1) => {
 //        extendedAttributeSet.foreach({
@@ -441,21 +597,29 @@ object Axiomatization {
 //          case _ => {}
 //        })
         val cs = extendedAttributeSet.collect({
+          // TODO: It suffices to consider the existential restrictions ∃r.C in conclusions
+          // TODO: Pre-compute or cache the values clop(mmsc2)
           // (5)   {∃r.C} → {(r,X)}  if  C simulates X, i.e., there is a simulation from (𝔓(𝓘),X) to (𝓘_𝓣,C)
-          case pair2@(property2: OWLObjectProperty, mmsc2: collection.BitSet)
+//          case pair2 @ (property2: OWLObjectProperty, mmsc2: collection.BitSet)
+          case pair2 @ ObjectSomeValuesFromMMSC(property2, mmsc2)
             if (property1 equals property2) && (clop(mmsc2) contains rcmRepresentativeOf2(filler1)) => extendedAttributeIndex(pair2)
+//            if (property1 equals property2)
+//              && (existentialRestrictionsInConclusions contains exr1)
+//              && (clop(mmsc2) contains rcmRepresentativeOf2(filler1)) => extendedAttributeIndex(pair2)
 
+          // TODO: It suffices to consider the existential restrictions ∃r.C in conclusions and ∃r.D in premises
           // (2)   {∃r.C} → {∃r.D}   if  simulates(C, D) == true
-          case exr2@ObjectSomeValuesFrom(property2@ObjectProperty(_), filler2)
+          case exr2 @ ObjectSomeValuesFrom(property2 @ ObjectProperty(_), filler2)
             if (property1 equals property2) && (simulates(filler1, filler2)) => extendedAttributeIndex(exr2)
         })
         if (cs.nonEmpty)
-          backgroundImplications.addOne((BitSet(extendedAttributeIndex(exr1)), BitSet.fromSpecific(cs)))
+          _backgroundImplications.add(BitSet(extendedAttributeIndex(exr1)) -> BitSet.fromSpecific(cs))
+          logger.tick()
       }
       case _ => {}
     })
 
-    elkReasoner.dispose()
+    elk.reasoner.dispose()
 
     // (3)  Conj(C) → Conj(D)  if  C⊑D ∈ 𝓣
     elTBox.foreach({
@@ -463,13 +627,15 @@ object Axiomatization {
         val p = premise.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x : (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
         val c = conclusion.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x : (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
         if (c.nonEmpty)
-          backgroundImplications.addOne((p,c))
+          _backgroundImplications.add(p -> c)
+          logger.tick()
       }
       case ObjectPropertyDomain(_, property@ObjectProperty(_), conclusion) => {
         val p = BitSet(extendedAttributeIndex(ObjectSomeValuesFrom(property, OWLThing)))
         val c = conclusion.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x: (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
         if (c.nonEmpty)
-          backgroundImplications.addOne((p, c))
+          _backgroundImplications.add(p -> c)
+          logger.tick()
       }
       case EquivalentClasses(_, operands) => {
         val n = operands.size
@@ -481,80 +647,211 @@ object Axiomatization {
         })
         (0 until (n-2)).foreach(j => {
           if (ps(j+1).nonEmpty)
-            backgroundImplications.addOne((ps(j), ps(j+1)))
+            _backgroundImplications.add(ps(j) -> ps(j+1))
+            logger.tick()
         })
         if (ps(0).nonEmpty)
-          backgroundImplications.addOne((ps(n-1), ps(0)))
+          _backgroundImplications.add(ps(n-1) -> ps(0))
+          logger.tick()
       }
     })
 
-//    // TODO: remove
-//    backgroundImplications.addOne((BitSet.empty, BitSet.fromSpecific(0 until cxt.occupiedAttributes.length)))
 
-    println()
-    val endBackgroundImplications = System.currentTimeMillis()
-    println("Computing the background implications took " + formatTime(endBackgroundImplications - startBackgroundImplications))
-    println(backgroundImplications.size + " background implications computed.")
-    println("There are " + backgroundImplications.filter(_._1.isEmpty).size + " background implications with empty premise.")
-    println("There are " + backgroundImplications.filter(_._2.isEmpty).size + " background implications with empty conclusion.")
-
-    val cbase = measureExecutionTime({
-      LinCbO.computeCanonicalBase(cxt)
-    }, "Computing the canonical base took ")
-    println()
-    println(cbase.size + " implications in cbase")
-    println(cbase.filter((_, ys) => !ys.contains(0)).size + " implications in canonical base that are no disjointness axiom")
-    println(cbase.filter((xs, _) => xs.contains(0)).size + " implications contain OWLNothing in the premise")
-    println()
-    val filteredcbase = measureExecutionTime({
-      LinCbO.computeCanonicalBase(cxt, cxt.commonObjects(_).nonEmpty)
-    }, "Computing the filtered canonical base took ")
-    println()
-    println(filteredcbase.size + " implications in filtered canonical base")
-    println()
-
-    val base = LinCbO_JKK.computeCanonicalBase(cxt, ont)
-    println(base.size + " implications in canonical base")
-
-    val cbaseBack = measureExecutionTime({
-      LinCbOWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length)
-    }, "Computing the relative canonical base took ")
-    println()
-    println(cbaseBack.size + " implications in relative canonical base")
-    println(cbaseBack.filter((_, ys) => !ys.contains(0)).size + " implications in relative canonical base that are no disjointness axiom")
-    println(cbaseBack.filter((xs, _) => xs.contains(0)).size + " implications contain OWLNothing in the premise")
-    println()
-    val filteredcbaseBack = measureExecutionTime({
-      LinCbOWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length, ms => cxt.commonObjects(ms intersect cxt.bitsOccupiedAttributes).nonEmpty)
-    }, "Computing the filtered relative canonical base took ")
-    println()
-    println(filteredcbaseBack.size + " implications in filtered relative canonical base")
-    println(filteredcbaseBack.filter((_, ys) => !ys.contains(0)).size + " implications in filtered relative canonical base that are no disjointness axiom")
-    println()
-
-    def printlnImp(implication: BitImplication): Unit = {
-      val p = implication._1
-      val c = implication._2
-      var str = ""
-      str += (0 until extendedAttributeSet.length).foldLeft("")((s,i) => s + (if (i == cxt.occupiedAttributes.length) "|" else "") + (if (p(i)) "X" else "."))
-      str += " ⟶ "
-      str += (0 until extendedAttributeSet.length).foldLeft("")((s,i) => s + (if (i == cxt.occupiedAttributes.length) "|" else "") + (if (c(i)) "X" else "."))
-      println(str)
+    val backgroundImplications = mutable.HashSet[BitImplication]()
+    val it = _backgroundImplications.iterator()
+    while (it.hasNext) {
+      backgroundImplications.addOne(it.next())
     }
+    _backgroundImplications.clear()
+//    val backgroundImplications = _backgroundImplications.asScala
+//    val numberBackgroundImplications = AtomicInteger(0)
 
-    println((cbaseBack diff cbase.toSet).size + " additional implications.")
-//    (cbaseBack diff cbase.toSet).foreach(printlnImp)
-    println((cbase.toSet diff cbaseBack).size + " additional implications.")
-//    (cbase.toSet diff cbaseBack).foreach(printlnImp)
-    println()
-    println(backgroundImplications.size + " background implications.")
-//    backgroundImplications.foreach(printlnImp)
-    println()
+    logger.println()
+    val measurement_ComputationTime_BackgroundImplications = System.currentTimeMillis() - startBackgroundImplications
+    logger.println("Computing the background implications took " + formatTime(measurement_ComputationTime_BackgroundImplications))
+    val measurement_Number_BackgroundImplications = backgroundImplications.size
+    logger.println(measurement_Number_BackgroundImplications + " background implications computed.")
+//    logger.println("There are " + backgroundImplications.filter(_._1.isEmpty).size + " background implications with empty premise.")
+//    logger.println("There are " + backgroundImplications.filter(_._2.isEmpty).size + " background implications with empty conclusion.")
+    logger.reset()
 
-    val computationTime = System.currentTimeMillis() - startTime
-    println(formatTime(computationTime))
+    logger.println(
+      "\n\n" +
+      "***********************************************\n" +
+      "* END: Computation of background implications *\n" +
+      "***********************************************\n"
+    )
 
-    println("Dataset: " + ont)
+    /* ******************************************* */
+    /* END: Computation of background implications */
+    /* ******************************************* */
+
+
+
+
+
+
+
+
+
+
+    /* *********************************** */
+    /* START: Computing the canonical base */
+    /* *********************************** */
+
+    logger.println(
+      "\n\n" +
+      "***************************************\n" +
+      "* START: Computing the canonical base *\n" +
+      "***************************************\n"
+    )
+
+    val (cbase, measurement_ComputationTime_CanonicalBase) = measureExecutionTime {
+      if (withDisjointnessAxioms)
+        LinCbO.computeCanonicalBase(cxt)
+      else
+        LinCbO.computeCanonicalBase(cxt, cxt.commonObjects(_).nonEmpty)
+    }
+    logger.println("Computing the canonical base with LinCbO/Scala took " + formatTime(measurement_ComputationTime_CanonicalBase))
+    val measurement_Number_ImplicationsInCanonicalBase = cbase.size
+    logger.println(measurement_Number_ImplicationsInCanonicalBase + " implications in canonical base")
+    val measurement_Number_ImplicationsInFinalBase =
+      if canonicalDisjointnessAxioms
+      then measurement_Number_ImplicationsInCanonicalBase
+      else measurement_Number_ImplicationsInCanonicalBase + measurement_Number_FastDisjointnessAxioms
+    //    logger.println(cbase.filter((_, ys) => !ys.contains(0)).size + " implications in canonical base that are no disjointness axiom")
+    //    logger.println(cbase.filter((xs, _) => xs.contains(0)).size + " implications contain OWLNothing in the premise")
+    logger.println()
+
+
+
+    val (base, measurement_ComputationTime_CanonicalBaseJKK) =
+      if (withDisjointnessAxioms)
+        LinCbO_JKK.computeCanonicalBase(cxt, ont)
+      else
+        (Seq.empty, -1l)
+    logger.println("Computing the canonical base with LinCbO/C++ took " + formatTime(measurement_ComputationTime_CanonicalBaseJKK))
+    val measurement_Number_ImplicationsInCanonicalBaseJKK = base.size
+    logger.println(measurement_Number_ImplicationsInCanonicalBaseJKK + " implications in canonical base")
+    logger.println()
+
+
+
+    val (cbaseBack, measurement_ComputationTime_RelativeCanonicalBase) = measureExecutionTime {
+      if (withDisjointnessAxioms)
+        LinCbOWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length)
+      else
+        LinCbOWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length, ms => cxt.commonObjects(ms intersect cxt.bitsActiveAttributes).nonEmpty)
+    }
+    logger.println("Computing the relative canonical base with BLinCbO/Scala took " + formatTime(measurement_ComputationTime_RelativeCanonicalBase))
+    val measurement_Number_ImplicationsInRelativeCanonicalBase = cbaseBack.size
+    logger.println(measurement_Number_ImplicationsInRelativeCanonicalBase + " implications in relative canonical base")
+    val measurement_Number_ImplicationsInFinalRelativeBase =
+      if canonicalDisjointnessAxioms
+      then measurement_Number_ImplicationsInRelativeCanonicalBase
+      else measurement_Number_ImplicationsInRelativeCanonicalBase + measurement_Number_FastDisjointnessAxioms
+//    val measurement_Number_ImplicationsInRelativeCanonicalBase =
+//      measurement_Number_ImplicationsInRelativeCanonicalBaseWithoutSingletonDisjointnessAxioms + measurement_Number_SingletonDisjointnessAxiomsInCanonicalBase
+//      logger.println(cbaseBack.filter((_, ys) => !ys.contains(0)).size + " implications in relative canonical base that are no disjointness axiom")
+//      logger.println(cbaseBack.filter((xs, _) => xs.contains(0)).size + " implications contain OWLNothing in the premise")
+    logger.println()
+
+    logger.println(
+      "\n\n" +
+        "*************************************\n" +
+        "* END: Computing the canonical base *\n" +
+        "*************************************\n"
+    )
+
+    /* ********************************* */
+    /* END: Computing the canonical base */
+    /* ********************************* */
+
+
+
+
+
+//    def printlnImp(implication: BitImplication): Unit = {
+//      val p = implication._1
+//      val c = implication._2
+//      var str = ""
+//      str += (0 until extendedAttributeSet.length).foldLeft("")((s,i) => s + (if (i == cxt.occupiedAttributes.length) "|" else "") + (if (p(i)) "X" else "."))
+//      str += " ⟶ "
+//      str += (0 until extendedAttributeSet.length).foldLeft("")((s,i) => s + (if (i == cxt.occupiedAttributes.length) "|" else "") + (if (c(i)) "X" else "."))
+//      logger.println(str)
+//    }
+
+//    logger.println()
+//    logger.println(measurement_NumberOfBackgroundImplications + " background implications.")
+////    backgroundImplications.foreach(printlnImp)
+//    logger.println()
+
+    val measurement_ComputationTime_Total = System.currentTimeMillis() - startTime
+
+
+    logger.println()
+    logger.println("Dataset ............................................................. " + ont)
+    logger.println("Disjointness Axioms: ................................................ " + whichDisjointnessAxioms)
+    logger.println("Total computation time .............................................. " + formatTime(measurement_ComputationTime_Total))
+    logger.println("Time for loading ontology ........................................... " + formatTime(measurement_ComputationTime_LoadOntology))
+    logger.println("Time for first reduction ............................................ " + formatTime(measurement_ComputationTime_FirstReduction))
+    logger.println("Number of objects in domain ......................................... " + measurement_Number_ObjectsInDomain)
+    logger.println("Number of objects in reduced domain ................................. " + measurement_Number_ObjectsInReducedDomain)
+    logger.println("Number of objects in reduced canonical model ........................ " + measurement_Number_ObjectsInReducedCanonicalModel)
+    logger.println("Time for initialization ............................................. " + formatTime(measurement_ComputationTime_Initialization))
+    logger.println("Time for computing all closures with FCbO ........................... " + formatTime(measurement_ComputationTime_Closures))
+    logger.println("Number of closures .................................................. " + measurement_Number_Closures)
+    logger.println("Time for computing the induced context .............................. " + formatTime(measurement_ComputationTime_InducedContext))
+    logger.println("Number of attributes in induced context ............................. " + measurement_Number_AttributesInInducedContext)
+    logger.println("Number of active attributes in induced context ...................... " + measurement_Number_ActiveAttributesInInducedContext)
+    logger.println("Number of axioms in TBox ............................................ " + measurement_Number_AxiomsInTBox)
+    logger.println("Number of disjointness axioms in TBox ............................... " + measurement_Number_DisjointnessAxiomsInTBox)
+    logger.println("Time for computing the background implications ...................... " + formatTime(measurement_ComputationTime_BackgroundImplications))
+    logger.println("Number of background implications ................................... " + measurement_Number_BackgroundImplications)
+    logger.println("Time for computing the canonical base with LinCbO/C++ ............... " + formatTime(measurement_ComputationTime_CanonicalBaseJKK))
+    logger.println("Time for computing the canonical base with LinCbO/Scala ............. " + formatTime(measurement_ComputationTime_CanonicalBase))
+    logger.println("Time for computing the relative canonical base with BLinCbO/Scala ... " + formatTime(measurement_ComputationTime_RelativeCanonicalBase))
+    logger.println("Number of implications in final base ................................ " + measurement_Number_ImplicationsInFinalBase)
+    logger.println("  among which are no fast disjointness axiom (LinCbO/Scala) ......... " + measurement_Number_ImplicationsInCanonicalBase)
+    logger.println("  among which are no fast disjointness axiom (LinCbO/C++) ........... " + measurement_Number_ImplicationsInCanonicalBaseJKK)
+    logger.println("  among which are fast disjointness axioms .......................... " + measurement_Number_FastDisjointnessAxioms)
+    logger.println("Number of implications in final relative base ....................... " + measurement_Number_ImplicationsInFinalRelativeBase)
+    logger.println("  among which are no fast disjointness axiom (BLinCbO/Scala) ........ " + measurement_Number_ImplicationsInRelativeCanonicalBase)
+    logger.println()
+    logger.println()
+
+
+    val csv =
+      ont + ";" +
+      whichDisjointnessAxioms + ";" +
+      "Success" + ";" +
+      measurement_ComputationTime_Total + ";" +
+      measurement_ComputationTime_LoadOntology + ";" +
+      measurement_ComputationTime_FirstReduction + ";" +
+      measurement_Number_ObjectsInDomain + ";" +
+      measurement_Number_ObjectsInReducedDomain + ";" +
+      measurement_Number_ObjectsInReducedCanonicalModel + ";" +
+      measurement_ComputationTime_Initialization + ";" +
+      measurement_ComputationTime_Closures + ";" +
+      measurement_Number_Closures + ";" +
+      measurement_ComputationTime_InducedContext + ";" +
+      measurement_Number_AttributesInInducedContext + ";" +
+      measurement_Number_ActiveAttributesInInducedContext + ";" +
+      measurement_Number_AxiomsInTBox + ";" +
+      measurement_Number_DisjointnessAxiomsInTBox + ";" +
+      measurement_ComputationTime_BackgroundImplications + ";" +
+      measurement_Number_BackgroundImplications + ";" +
+      measurement_ComputationTime_CanonicalBaseJKK + ";" +
+      measurement_ComputationTime_CanonicalBase + ";" +
+      measurement_ComputationTime_RelativeCanonicalBase + ";" +
+      measurement_Number_ImplicationsInFinalBase + ";" +
+      measurement_Number_ImplicationsInCanonicalBase + ";" +
+      measurement_Number_ImplicationsInCanonicalBaseJKK + ";" +
+      measurement_Number_FastDisjointnessAxioms + ";" +
+      measurement_Number_ImplicationsInFinalRelativeBase + ";" +
+      measurement_Number_ImplicationsInRelativeCanonicalBase
+
+    writeResults(csv)
 
   }
 

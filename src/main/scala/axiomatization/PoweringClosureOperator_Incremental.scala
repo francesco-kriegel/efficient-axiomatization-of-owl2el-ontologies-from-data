@@ -21,7 +21,7 @@ import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
 import scala.jdk.CollectionConverters.*
 
-class IncrementalPoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
+class PoweringClosureOperator_Incremental(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
 
   //    val reductionPar = new scala.collection.parallel.mutable.ParArray[OWLIndividual](reduction.nodes.toArray)
   //    val reductionNodesPar = new scala.collection.parallel.mutable.ParHashSet[Int]()
@@ -80,6 +80,10 @@ class IncrementalPoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLOb
   //      })
   //      val xs = __xs.toImmutable
   def apply(xs: collection.BitSet): collection.BitSet = {
+
+//    if (xs.max >= reduction.nodes().size)
+//      throw new IllegalArgumentException()
+
     val delta = extendPowering(xs)
     if (delta.nonEmpty) {
       //        counter.tick()

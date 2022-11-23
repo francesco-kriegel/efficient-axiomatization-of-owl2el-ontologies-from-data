@@ -63,11 +63,29 @@ object Util {
     }
   }
 
-  def measureExecutionTime[T](code: => T, text: String): T = {
+//  @inline
+  def measureExecutionTime[T](code: => T): (T, Long) = {
     val start = System.currentTimeMillis()
     val result = code
     val duration = System.currentTimeMillis() - start
-    print(text + formatTime(duration))
+    (result, duration)
+  }
+
+  @inline
+  def writeExecutionTime[T](code: => T, consume: Long => _): T = {
+    val start = System.currentTimeMillis()
+    val result = code
+    val duration = System.currentTimeMillis() - start
+    consume(duration)
+    result
+  }
+
+  @inline
+  def printExecutionTime[T](code: => T, text: String)(using logger: Logger): T = {
+    val start = System.currentTimeMillis()
+    val result = code
+    val duration = System.currentTimeMillis() - start
+    logger.print(text + formatTime(duration))
     result
   }
 
@@ -89,20 +107,20 @@ object Util {
 //    }
 //  }
 
-  class Counter() {
-    var n = 0
-
-    def tick(): Unit = {
-      n = n + 1
-      print("\r" + n)
-    }
-
-    def reset(): Unit = {
-      println()
-      n = 0
-    }
-  }
-
-  val GLOBAL_COUNTER = Counter()
+//  class Counter() {
+//    var n = 0
+//
+//    def tick(): Unit = {
+//      n = n + 1
+//      print("\r" + n)
+//    }
+//
+//    def reset(): Unit = {
+//      println()
+//      n = 0
+//    }
+//  }
+//
+//  val GLOBAL_COUNTER = Counter()
 
 }

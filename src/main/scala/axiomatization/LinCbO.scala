@@ -1,7 +1,7 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
-import axiomatization.Util.{GLOBAL_COUNTER, measureExecutionTime}
+import axiomatization.Util.measureExecutionTime
 
 import org.semanticweb.owlapi.model.{OWLClass, OWLObjectProperty, OWLObjectSomeValuesFrom}
 
@@ -15,10 +15,10 @@ import scala.util.control.Breaks.{break, breakable}
 
 object LinCbO {
 
-  def computeCanonicalBase(cxt: InducedFormalContext, inclusionIdeal: collection.BitSet => Boolean = _ => true):
+  def computeCanonicalBase(cxt: InducedFormalContext, inclusionIdeal: collection.BitSet => Boolean = _ => true)(using logger: Logger):
   mutable.ArrayBuffer[BitImplication] = {
 
-    val n = cxt.occupiedAttributes.length
+    val n = cxt.activeAttributes.length
 
     val imps = new Array[mutable.BitSet](n)
     (0 until n).foreach(i => imps(i) = mutable.BitSet())
@@ -63,7 +63,7 @@ object LinCbO {
       canonicalBase.addOne(imp)
       counts.append(ant.size)
       ant.foreach(j => imps(j).addOne(index))
-      print("\rLinCbO: " + canonicalBase.length + " implications computed so far.")
+      logger.print("\rLinCbO: " + canonicalBase.length + " implications computed so far.")
     }
 
     def Step(current: mutable.BitSet, y: Int, added: mutable.BitSet, lastCounts: Array[Int]): Unit = {
@@ -95,6 +95,8 @@ object LinCbO {
 
     Step(mutable.BitSet.empty, -1, mutable.BitSet.empty, counts.toArray)
 
+    logger.println()
+
     canonicalBase
 
   }
@@ -105,12 +107,12 @@ object LinCbO {
 object LinCbOWithBackgroundImplications {
 
   def computeCanonicalBase(cxt: InducedFormalContext,
-                           backgroundImplications: collection.Set[BitImplication],
+                           backgroundImplications: collection.Iterable[BitImplication],
                            nAtts: Int = -1,
                            inclusionIdeal: collection.BitSet => Boolean = _ => true
-                          ): mutable.HashSet[BitImplication] = {
+                          )(using logger: Logger): mutable.HashSet[BitImplication] = {
 
-    val m = cxt.occupiedAttributes.length
+    val m = cxt.activeAttributes.length
     val n = if (nAtts < m) m else nAtts
     val bitsAdditionalAttributes = BitSet.fromSpecific(m until n)
 
@@ -166,15 +168,15 @@ object LinCbOWithBackgroundImplications {
     }
 
     def addPseudoIntent(_ant: mutable.BitSet, _cons: mutable.BitSet): Unit = {
-      val ant = _ant intersect cxt.bitsOccupiedAttributes
-      val cons = _cons intersect cxt.bitsOccupiedAttributes
+      val ant = _ant intersect cxt.bitsActiveAttributes
+      val cons = _cons intersect cxt.bitsActiveAttributes
       val imp = (ant, cons)
       val index = allImplications.length
       allImplications.addOne(imp)
       canonicalBase.addOne(imp)
       counts.append(ant.size)
       ant.foreach(j => imps(j).addOne(index))
-      print("\rLinCbO: " + canonicalBase.size + " implications computed so far.")
+      logger.print("\rLinCbO: " + canonicalBase.size + " implications computed so far.")
     }
 
     def Step(current: mutable.BitSet, y: Int, added: mutable.BitSet, lastCounts: Array[Int]): Unit = {
@@ -183,7 +185,7 @@ object LinCbOWithBackgroundImplications {
         if (linCl.nonEmpty) {
           val (psClosure, count) = linCl.get
 
-          val left = psClosure intersect cxt.bitsOccupiedAttributes
+          val left = psClosure intersect cxt.bitsActiveAttributes
           val right = psClosure intersect bitsAdditionalAttributes
           val closure = cxt.closure(left) union right
 
@@ -211,7 +213,7 @@ object LinCbOWithBackgroundImplications {
 //    Step(mutable.BitSet.empty, -1, mutable.BitSet.empty, counts.toArray)
     Step(first, -1, first, counts.toArray)
 
-    println()
+    logger.println()
 
     canonicalBase
 
@@ -222,28 +224,32 @@ object LinCbOWithBackgroundImplications {
 object LinCbO_JKK {
 
 
-  def computeCanonicalBase(cxt: InducedFormalContext, identifier: String): collection.Seq[(collection.Set[M], collection.Set[M])] = {
+  def computeCanonicalBase(cxt: InducedFormalContext, identifier: String)(using logger: Logger): (collection.Seq[(collection.Set[M], collection.Set[M])], Long) = {
 
-    //    val basepath = "/Users/francesco/workspace/Java_Scala/efficient-axiomatization-of-owl2el-ontologies-from-data/"
-    val basepath = ""
-    val cxtFile = new File(basepath + identifier + ".cxt")
+    val runnableLinCbOFilename = "LinCbO/fcai/CanonicalBasis/fcai"
+    val contextFilename = "ore2015_pool_sample_experiments/contexts/" + identifier + "_" + cxt.whichDisjointnessAxioms + ".cxt"
+    val implicationBaseFilename = "ore2015_pool_sample_experiments/implication_bases/" + identifier + "_" + cxt.whichDisjointnessAxioms + ".canbase"
+    val cxtFile = new File(contextFilename)
 
     cxt.writeToFile(cxtFile)
 
-    println("Induced context written to " + cxtFile)
+    logger.println("Induced context written to " + cxtFile)
 
-    println("Running LinCbO...")
-    println()
-    println("########################################")
-    println(sys.process.Process(basepath + "LinCbO/fcai/CanonicalBasis/fcai " + basepath + identifier + ".cxt " + basepath + identifier + ".canbase 1").!!)
-    println("\r########################################")
-    println()
+    logger.println("Running LinCbO...")
+    logger.println()
+    logger.println("########################################")
+    val (output, duration) = measureExecutionTime {
+      sys.process.Process(runnableLinCbOFilename + " " + contextFilename + " " + implicationBaseFilename + " 1").!!
+    }
+    logger.println(output)
+    logger.println("\r########################################")
+    logger.println()
 
-    println("Reading canonical base...")
+    logger.println("Reading canonical base...")
     def read(string: String): collection.Set[M] = {
       val set = mutable.HashSet[M]()
       val i = string.iterator
-      val j = cxt.occupiedAttributes.iterator
+      val j = cxt.activeAttributes.iterator
       while (i.hasNext && j.hasNext)
         if (i.next() equals '1')
           set.addOne(j.next())
@@ -251,8 +257,8 @@ object LinCbO_JKK {
     }
 
     val canonicalBase = ListBuffer[(collection.Set[M], collection.Set[M])]()
-    val reader = new BufferedReader(new FileReader(new File(basepath + identifier + ".canbase-myCboMemNoPruning")))
-    //    reader.lines().forEach(println(_))
+    val reader = new BufferedReader(new FileReader(new File(implicationBaseFilename + "-myCboMemNoPruning")))
+    // reader.lines().forEach(logger.println(_))
     reader.lines.forEach(line => {
       if (line.contains("=>")) {
         val s = line.split("=>")
@@ -263,7 +269,7 @@ object LinCbO_JKK {
     })
     reader.close()
 
-    canonicalBase
+    (canonicalBase, duration)
 
   }
 

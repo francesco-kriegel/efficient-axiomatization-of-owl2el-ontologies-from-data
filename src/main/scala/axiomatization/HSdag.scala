@@ -3,10 +3,11 @@ package de.tu_dresden.inf.lat
 package axiomatization
 
 import com.google.common.collect.Sets
-import collection.JavaConverters._
-import scala.util.Random
 
+import collection.JavaConverters.*
+import scala.util.Random
 import collection.parallel.CollectionConverters.SetIsParallelizable
+import scala.annotation.tailrec
 //import collection.parallel.CollectionConverters.IterableIsParallelizable
 import scala.collection.mutable
 
@@ -151,6 +152,7 @@ private class HSdagPar[A](F: Iterator[collection.Set[A]]) {
     expand(Set(rootNode))
   }
 
+  @tailrec
   private def expand(nodes: collection.Set[Node]): Unit = {
     val nextLevel = Sets.newConcurrentHashSet[Node]().asScala
     nodes.par.foreach(node ⇒ {

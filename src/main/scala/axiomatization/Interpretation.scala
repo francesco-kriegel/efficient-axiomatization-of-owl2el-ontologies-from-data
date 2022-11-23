@@ -12,7 +12,6 @@ import uk.ac.manchester.cs.owl.owlapi.OWLAnonymousIndividualImpl
 import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.jdk.StreamConverters.*
-import de.tu_dresden.inf.lat.axiomatization.Util.GLOBAL_COUNTER
 
 object Interpretation {
 
@@ -27,12 +26,31 @@ object Interpretation {
 
     def unfoldABoxAssertion(classExpression: OWLClassExpression, individual: OWLIndividual): Unit = {
       classExpression.conjunctSet().forEach({
+
         case owlClass@Class(_) if !(owlClass equals OWLNothing) =>
           ontology.addAxiom(individual Type owlClass)
+
         case ObjectSomeValuesFrom(property@ObjectProperty(_), filler) =>
           val successor = variableFor(filler)
           ontology.addAxiom(individual Fact(property, successor))
           unfoldABoxAssertion(filler, successor)
+
+        case ObjectMinCardinality(cardinality, property@ObjectProperty(_), filler) if cardinality > 0 =>
+          val successor = variableFor(filler)
+          ontology.addAxiom(individual Fact(property, successor))
+          unfoldABoxAssertion(filler, successor)
+
+        case ObjectExactCardinality(cardinality, property@ObjectProperty(_), filler) if cardinality > 0 =>
+          val successor = variableFor(filler)
+          ontology.addAxiom(individual Fact(property, successor))
+          unfoldABoxAssertion(filler, successor)
+
+        case ObjectHasSelf(property@ObjectProperty(_)) =>
+          ontology.addAxiom(individual Fact(property, individual))
+
+        case ObjectHasValue(property@ObjectProperty(_), successor) =>
+          ontology.addAxiom(individual Fact(property, successor))
+
         case _ =>
 //          Console.err.println("Unsupported class expression in ABox: " + classExpression)
       })
@@ -72,9 +90,9 @@ object Interpretation {
 
   }
 
-  def maximalSimulationOn(graph: BitGraph[OWLClass, OWLObjectProperty]): BitBiMap = {
+  def maximalSimulationOn(graph: BitGraph[OWLClass, OWLObjectProperty])(using logger: Logger): BitBiMap = {
 
-    println("Computing pre-simulation...")
+    logger.println("Computing pre-simulation...")
 
     //    val simulation = ConcurrentReflexiveRelation[OWLIndividual]()
     //    val simulation = ReflexiveBitRelation[OWLIndividual]()
@@ -82,7 +100,7 @@ object Interpretation {
     //    val nodesPar = new scala.collection.parallel.mutable.ParArray[OWLIndividual](graph.nodes.toArray)
 
     for (y <- graph.nodes().par) {
-      GLOBAL_COUNTER.tick()
+      logger.tick()
       val yLabels = graph.labels(y)
       val yProperties = graph.successorRelations(y)
       //      for (x <- nodesPar if !(x equals y)) {
@@ -95,16 +113,16 @@ object Interpretation {
         }
       }
     }
-    GLOBAL_COUNTER.reset()
+    logger.reset()
 
-    println("Computing initial mapping R(x,r)...")
+    logger.println("Computing initial mapping R(x,r)...")
 
     //     val R = new mutable.HashMap[(OWLIndividual, OWLObjectProperty), mutable.Set[OWLIndividual]]
     //    val bitR = new LongBitRelation[(OWLIndividual, OWLObjectProperty), OWLIndividual]
     val bitR = BitMap[(Int, OWLObjectProperty)]()
 
     for (x <- graph.nodes().par) {
-      GLOBAL_COUNTER.tick()
+      logger.tick()
       for (yy <- graph.nodes()) {
         for (property <- graph.successorRelations(yy)) {
           //          if (!graph.successorsForRelation(yy, property).exists(simulation(x, _))) {
@@ -121,13 +139,13 @@ object Interpretation {
       }
     }
 
-    GLOBAL_COUNTER.reset()
+    logger.reset()
 
-    println("Computing simulation...")
+    logger.println("Computing simulation...")
 
     @tailrec
     def loop(): Unit = {
-      GLOBAL_COUNTER.tick()
+      logger.tick()
       ////      if (R.nonEmpty) {
       //      val opt = bitR.nonEmptyRow()
       //      if (opt.isDefined) {
@@ -162,18 +180,18 @@ object Interpretation {
     }
 
     loop()
-    GLOBAL_COUNTER.reset()
+    logger.reset()
 
     simulation
 
   }
 
-  def reductionOf(graph: BitGraph[OWLClass, OWLObjectProperty], withMapping: Boolean = false):
+  def reductionOf(graph: BitGraph[OWLClass, OWLObjectProperty], withMapping: Boolean = false)(using logger: Logger):
   (BitGraph[OWLClass, OWLObjectProperty], Int => mutable.BitSet, Int => Int) = {
 
     val simulation = maximalSimulationOn(graph)
 
-    println("Computing equivalence classes...")
+    logger.println("Computing equivalence classes...")
 
     //    val equivalenceClasses = mutable.ListBuffer[collection.Set[OWLIndividual]]()
     //    val remainingNodes = mutable.HashSet[OWLIndividual]()
@@ -181,7 +199,7 @@ object Interpretation {
     val remainingNodes = mutable.BitSet()
     remainingNodes.addAll(graph.nodes())
     while (remainingNodes.nonEmpty) {
-      GLOBAL_COUNTER.tick()
+      logger.tick()
       val representative = remainingNodes.head
       //      val equivalenceClass = simulation.rowAsArrayBuffer(representative).filter(simulation.colAsSet(representative)(_))
       //      val equivalenceClass = simulation.rowAsSet(representative) intersect simulation.colAsSet(representative)
@@ -191,11 +209,11 @@ object Interpretation {
       //      equivalenceClass.foreach(remainingNodes.remove(_))
       remainingNodes --= equivalenceClass
     }
-    GLOBAL_COUNTER.reset()
+    logger.reset()
 
-    println(equivalenceClasses.size + " equivalence classes")
+    logger.println(equivalenceClasses.size + " equivalence classes")
 
-    println("Computing reduction...")
+    logger.println("Computing reduction...")
 
     val reduction = BitGraph[OWLClass, OWLObjectProperty]()
     reduction.labels().addAll(graph.labels())
@@ -217,10 +235,11 @@ object Interpretation {
 //    val n = i - 1
     //    val ecPar = new scala.collection.parallel.mutable.ParArray[Set[OWLIndividual]](equivalenceClasses.toArray)
     for (xs <- equivalenceClasses) {
-      GLOBAL_COUNTER.tick()
+      logger.tick()
       reduction.addNode(index(xs))
       //      graph.labels(xs.head).foreach(reduction.addLabel(index(xs), _))
-      reduction.addLabels(index(xs), graph.labels(xs.head))
+      if (graph.labels(xs.head).nonEmpty)
+        reduction.addLabels(index(xs), graph.labels(xs.head))
       for (ys <- equivalenceClasses) {
         graph.successorRelations(xs.head).foreach(r => {
           //          if (graph.successorsForRelation(xs.head, r).exists(simulation(ys.head, _))
@@ -232,7 +251,7 @@ object Interpretation {
         })
       }
     }
-    GLOBAL_COUNTER.reset()
+    logger.reset()
 
     if (withMapping)
       (reduction, representativeOf, representedBy)
