@@ -1922,7 +1922,8 @@ domainSize[ore_ont_5857]=723816; ontologies+=(ore_ont_5857)
 domainSize[ore_ont_10125]=747998; ontologies+=(ore_ont_10125)
 domainSize[ore_ont_12351]=747998; ontologies+=(ore_ont_12351)
 
-lastDomainSize=999
+#lastDomainSize=999
+lastDomainSize=1604
 
 for key in "${ontologies[@]}"; do
 

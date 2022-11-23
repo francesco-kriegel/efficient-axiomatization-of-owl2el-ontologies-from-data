@@ -34,7 +34,7 @@ object Main {
           if (args(1).toLowerCase.startsWith("c")) WhichDisjointnessAxioms.Canonical
           else if (args(1).toLowerCase.startsWith("f")) WhichDisjointnessAxioms.Fast
           else WhichDisjointnessAxioms.None
-        val onlyComputeReduction = args(2).toLowerCase.startsWith("onlyComputeReduction")
+        val onlyComputeReduction = args(2).startsWith("onlyComputeReduction")
         given logger: Logger =
           if args(3).toLowerCase.startsWith("quiet")
           then NoLogger()
