@@ -1922,98 +1922,129 @@ domainSize[ore_ont_5857]=723816; ontologies+=(ore_ont_5857)
 domainSize[ore_ont_10125]=747998; ontologies+=(ore_ont_10125)
 domainSize[ore_ont_12351]=747998; ontologies+=(ore_ont_12351)
 
-#lastDomainSize=999
-lastDomainSize=1604
+Reset='\033[0m'
+Yellow='\033[0;33m'
+Orange='\033[0;31m'
+Red='\033[0;35m'
+Cyan='\033[0;36m'
+Blue='\033[0;34m'
+Green='\033[0;32m'
+Gray='\033[0;37m'
+Black='\033[0;30m'
+
+lastDomainSize=999
 
 for key in "${ontologies[@]}"; do
 
   if [[ ${domainSize[$key]} -gt $lastDomainSize ]]
   then
 
-    echo "Processing $key with ${domainSize[$key]} objects..."
-    lastDomainSize=(11*${domainSize[$key]})/10
-    id=${key//ore_ont_/}
+    lastDomainSize=(21*${domainSize[$key]})/10
 
-    time="60m"
-    echo "Computing reduction (timeout: ${time})..."
-    timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id None onlyComputeReduction quiet
-    exitStatus=$?
-    case $exitStatus in
-      0) # successful computation
-        ;;
-      124|137) # Timeout
-        echo "${key};Reduction;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
-        ;;
-      3) # Out of memory
-        echo "${key};Reduction;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
-        ;;
-      *) # other error
-        echo "${key};Reduction;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
-        ;;
-    esac
-
-    if [[ ${exitStatus} -eq 0 ]] && [[ -f "ore2015_pool_sample_experiments/files/${key}_reduced.owl" ]]
+    if [[ ! -f "ore2015_pool_sample_experiments/files/${key}_reduced.owl" ]]
     then
 
-      time="30m"
-      echo "Computing experiment with no disjointness axioms (timeout: ${time})..."
-      timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id None computeEverything quiet
+      echo ""
+      echo "Processing $key with ${domainSize[$key]} objects..."
+      id=${key//ore_ont_/}
+
+      time="8h"
+      echo -n "Computing reduction (timeout: ${time})... "
+      timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id None onlyComputeReduction quiet
       exitStatus=$?
       case $exitStatus in
         0) # successful computation
+          echo -e "${Green}Success${Reset}"
           ;;
         124|137) # Timeout
-          echo "${key};None;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+          echo -e "${Yellow}Timeout${Reset}"
+          echo "${key};Reduction;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
           ;;
         3) # Out of memory
-          echo "${key};None;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+          echo -e "${Orange}Out of memory${Reset}"
+          echo "${key};Reduction;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
           ;;
         *) # other error
-          echo "${key};None;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+          echo -e "${Red}Error ${exitStatus}${Reset}"
+          echo "${key};Reduction;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
           ;;
       esac
 
-      if [[ ${exitStatus} -eq 0 ]]
+      if [[ ${exitStatus} -eq 0 ]] && [[ -f "ore2015_pool_sample_experiments/files/${key}_reduced.owl" ]]
       then
 
-        time="60m"
-        echo "Computing experiment with fast disjointness axioms (timeout: ${time})..."
-        timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id Fast computeEverything quiet
+        time="30m"
+        echo -n "Computing experiment with no disjointness axioms (timeout: ${time})... "
+        timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id None computeEverything quiet
         exitStatus=$?
         case $exitStatus in
           0) # successful computation
+            echo -e "${Green}Success${Reset}"
             ;;
           124|137) # Timeout
-            echo "${key};Fast;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+            echo -e "${Yellow}Timeout${Reset}"
+            echo "${key};None;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
             ;;
           3) # Out of memory
-            echo "${key};Fast;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+            echo -e "${Orange}Out of memory${Reset}"
+            echo "${key};None;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
             ;;
           *) # other error
-            echo "${key};Fast;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+            echo -e "${Red}Error ${exitStatus}${Reset}"
+            echo "${key};None;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
             ;;
         esac
 
         if [[ ${exitStatus} -eq 0 ]]
         then
 
-          echo "Computing experiment with canonical disjointness axioms (timeout: ${time})..."
-          timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id Canonical computeEverything quiet
+          time="60m"
+          echo -n "Computing experiment with fast disjointness axioms (timeout: ${time})... "
+          timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id Fast computeEverything quiet
           exitStatus=$?
           case $exitStatus in
             0) # successful computation
+              echo -e "${Green}Success${Reset}"
               ;;
             124|137) # Timeout
-              echo "${key};Canonical;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+              echo -e "${Yellow}Timeout${Reset}"
+              echo "${key};Fast;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
               ;;
             3) # Out of memory
-              echo "${key};Canonical;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+              echo -e "${Orange}Out of memory${Reset}"
+              echo "${key};Fast;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
               ;;
             *) # other error
-              echo "${key};Canonical;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+              echo -e "${Red}Error ${exitStatus}${Reset}"
+              echo "${key};Fast;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
               ;;
           esac
-          echo ""
+
+          if [[ ${exitStatus} -eq 0 ]]
+          then
+
+            echo -n "Computing experiment with canonical disjointness axioms (timeout: ${time})... "
+            timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id Canonical computeEverything quiet
+            exitStatus=$?
+            case $exitStatus in
+              0) # successful computation
+                echo -e "${Green}Success${Reset}"
+                ;;
+              124|137) # Timeout
+                echo -e "${Yellow}Timeout${Reset}"
+                echo "${key};Canonical;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+                ;;
+              3) # Out of memory
+                echo -e "${Orange}Out of memory${Reset}"
+                echo "${key};Canonical;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+                ;;
+              *) # other error
+                echo -e "${Red}Error ${exitStatus}${Reset}"
+                echo "${key};Canonical;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+                ;;
+            esac
+
+          fi
 
         fi
 
