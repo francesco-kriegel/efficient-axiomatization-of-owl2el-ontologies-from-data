@@ -165,6 +165,15 @@ object Axiomatization {
     }
 
     if (onlyComputeReduction) {
+      val csv =
+        ont + ";" +
+        "Reduction" + ";" +
+        "Success" + ";;" +
+        measurement_ComputationTime_LoadOntology + ";" +
+        measurement_ComputationTime_FirstReduction + ";" +
+        measurement_Number_ObjectsInDomain + ";" +
+        measurement_Number_ObjectsInReducedDomain + ";;;;;;;;;;;;;;;;;;;;"
+      writeResults(csv)
       System.exit(0)
     }
 
@@ -212,7 +221,7 @@ object Axiomatization {
 
     if (!elk.reasoner.isConsistent) {
       writeResults(ont + ";" + whichDisjointnessAxioms + ";Inconsistent;;;;;;;;;;;;;;;;;;;;;;;;;")
-      System.exit(0)
+      System.exit(4)
     }
 
 
