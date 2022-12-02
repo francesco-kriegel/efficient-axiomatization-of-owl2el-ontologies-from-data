@@ -9,7 +9,7 @@ trait ValueLogger() {
   def close(): Unit
 }
 
-class FileValueLogger(val filename: String, val prefix: String) extends ValueLogger {
+class FileValueLogger(val filename: String, val prefix: String) extends ValueLogger() {
 
   val queue = new ConcurrentLinkedQueue[Any]()
   var isOpen = true
@@ -45,7 +45,7 @@ class FileValueLogger(val filename: String, val prefix: String) extends ValueLog
 
 }
 
-class LoggerValueLogger()(using logger: Logger) extends ValueLogger {
+class LoggerValueLogger()(using logger: Logger) extends ValueLogger() {
   logger.println()
   override def logValue(obj: Any): Unit = logger.print("\r" + obj)
   override def close(): Unit = {}

@@ -105,9 +105,9 @@ object Evaluation {
     val Number_TypeTriplesInReduction: Option[Int] = reductionStatisticsMap.get(ont).map(_.Number_TypeTriplesInReduction)
     val Number_RelationTriplesInReduction: Option[Int] = reductionStatisticsMap.get(ont).map(_.Number_RelationTriplesInReduction)
 
-    val ComputationTime_TotalWithoutLoadAndReduce: Option[Long] =
+    val ComputationTime_TotalRelativeBaseWithoutLoadAndReduce: Option[Long] =
       if ComputationTime_Total.isDefined && ComputationTime_LoadAndReduce.isDefined
-      then Some(ComputationTime_Total.get - ComputationTime_LoadAndReduce.get)
+      then Some(ComputationTime_Total.get - ComputationTime_LoadAndReduce.get - ComputationTime_CanonicalBase.getOrElse(0l) - ComputationTime_CanonicalBaseJKK.getOrElse(0l))
       else None
 
     val Flag_AcyclicReduction: Option[Boolean] = reductionStatisticsMap.get(ont).map(_.Flag_Acyclic)
@@ -165,7 +165,7 @@ object Evaluation {
       Number_TriplesInReduction.map(_.toString).getOrElse("") + ";" +
       Number_TypeTriplesInReduction.map(_.toString).getOrElse("") + ";" +
       Number_RelationTriplesInReduction.map(_.toString).getOrElse("") + ";" +
-      computationTimeToString(ComputationTime_TotalWithoutLoadAndReduce) + ";" +
+      computationTimeToString(ComputationTime_TotalRelativeBaseWithoutLoadAndReduce) + ";" +
       Flag_AcyclicReduction.map(_.toString).getOrElse("") + ";" +
       Number_TriplesPerObjectOnAverageInReduction.map(_.toString).getOrElse("") + ";" +
       Number_TypeTriplesPerObjectOnAverageInReduction.map(_.toString).getOrElse("") + ";" +
@@ -389,8 +389,79 @@ object Evaluation {
 
   }
 
+  def filterResults(): Unit = {
 
-  private val paperFolder = java.io.File("/Users/francesco/workspace/LaTeX/constructing-owl-2-el-ontologies-from-data/SAC-KRR_2023")
+    resultsMap.foreach({
+      case ont -> results =>
+
+        println("Filtering results for ore_ont_" + ont)
+
+        object ResultOrdering extends Ordering[Result] {
+          override def compare(x: Result, y: Result): Int = {
+            if (!(x.mode equals y.mode))
+              throw IllegalArgumentException()
+            else {
+              def n(x: Result): Int = {
+                x.status match {
+                  case Success() => 1000
+                  case Inconsistent() => 900
+                  case Timeout(minutes) => minutes
+                  case OutOfMemory(_) => 200
+                  case Error(_) => 1
+                }
+              }
+              if (n(x) > n(y))
+                1
+              else if (n(x) < n(y))
+                -1
+              else
+                0
+            }
+          }
+        }
+
+        val bestResultFor =
+          (Mode.values: scala.Array[Mode])
+            .map(mode => mode -> results.filter(_.mode equals mode).maxOption(ResultOrdering))
+            .toMap
+
+        results.clear()
+
+        def statusToString(mode: Mode): String = {
+          bestResultFor(mode).get.status match {
+            case Success() => throw RuntimeException()
+            case Timeout(minutes) => s"Timeout(${minutes}m)"
+            case OutOfMemory(gigabytes) => s"OutOfMemory(${gigabytes}g)"
+            case Inconsistent() => "Inconsistent"
+            case Error(number) => s"Error($number)"
+          }
+        }
+
+        if (bestResultFor(Mode.Reduction).isDefined)
+          results.addOne(bestResultFor(Mode.Reduction).get)
+          if (bestResultFor(Mode.NoDisjointnessAxioms).isDefined)
+            results.addOne(bestResultFor(Mode.NoDisjointnessAxioms).get)
+            if (bestResultFor(Mode.FastDisjointnessAxioms).isDefined)
+              results.addOne(bestResultFor(Mode.FastDisjointnessAxioms).get)
+              if (bestResultFor(Mode.CanonicalDisjointnessAxioms).isDefined)
+                results.addOne(bestResultFor(Mode.CanonicalDisjointnessAxioms).get)
+              else
+                results.addOne(Result("ore_ont_" + ont + ";Canonical;" + statusToString(Mode.FastDisjointnessAxioms)))
+            else
+              results.addOne(Result("ore_ont_" + ont + ";Fast;" + statusToString(Mode.NoDisjointnessAxioms)))
+              results.addOne(Result("ore_ont_" + ont + ";Canonical;" + statusToString(Mode.NoDisjointnessAxioms)))
+          else
+            results.addOne(Result("ore_ont_" + ont + ";None;" + statusToString(Mode.Reduction)))
+            results.addOne(Result("ore_ont_" + ont + ";Fast;" + statusToString(Mode.Reduction)))
+            results.addOne(Result("ore_ont_" + ont + ";Canonical;" + statusToString(Mode.Reduction)))
+        else
+          throw RuntimeException()
+
+    })
+  }
+
+
+  private val paperFolder = java.io.File("/Users/francesco/workspace/LaTeX/efficient-axiomatization-of-owl2el-ontologies-from-data/ESWC_2023")
   private val evaluationFolder = java.io.File(paperFolder, "evaluation")
 
   def writeEvaluationData(): Unit = {
@@ -419,12 +490,56 @@ object Evaluation {
     })
     writer.values.foreach(_.close())
     writerSuccess.values.foreach(_.close())
-
+    val reductionTableWriter = java.io.FileWriter(java.io.File(evaluationFolder, "ReductionStatistics.tex"))
+    val it = resultsMap.iterator
+    var number = 0
+    var acyclic = 0
+    var success = 0
+    var timeout = 0
+    var outOfMemory = 0
+    var error = 0
+    while (it.hasNext) {
+      val ont -> results = it.next()
+      number += 1
+      if (getInputStatistics(ont).Flag_Acyclic)
+        acyclic += 1
+      val maybeResult = results.find(_.mode equals Mode.Reduction)
+      if (maybeResult.isDefined) {
+        val result = maybeResult.get
+        result.status match {
+          case Success() => success += 1
+          case Timeout(_) => timeout += 1
+          case OutOfMemory(_) => outOfMemory += 1
+          case Error(_) => error += 1
+          case _ => throw MatchError(result.status)
+        }
+      } else {
+        throw RuntimeException()
+      }
+    }
+    val percentageAcyclic = (acyclic.toFloat / number.toFloat) * 100
+    val percentageSuccess = (success.toFloat / number.toFloat) * 100
+    val percentageTimeout = (timeout.toFloat / number.toFloat) * 100
+    val percentageOutOfMemory = (outOfMemory.toFloat / number.toFloat) * 100
+    val percentageError = (error.toFloat / number.toFloat) * 100
+    reductionTableWriter.write(s"\\newcommand{\\ReductionNumberOfDatasets}{$number}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionSuccessNumber}{$success}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionSuccessPercentage}{$percentageSuccess%1.2f\\,\\%%}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionTimeoutNumber}{$timeout}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionTimeoutPercentage}{$percentageTimeout%1.2f\\,\\%%}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionOutOfMemoryNumber}{$outOfMemory}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionOutOfMemoryPercentage}{$percentageOutOfMemory%1.2f\\,\\%%}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionOtherErrorNumber}{$error}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionOtherErrorPercentage}{$percentageError%1.2f\\,\\%%}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionAcyclicNumber}{$acyclic}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionAcyclicPercentage}{$percentageAcyclic%1.2f\\,\\%%}\n")
+    reductionTableWriter.close()
   }
 
   def main(args: Array[String]): Unit = {
     readAdditionalReductionStatistics()
     readResults()
+    filterResults()
     writeEvaluationData()
   }
 

@@ -715,45 +715,49 @@ object Axiomatization {
       "***************************************\n"
     )
 
-    val (cbase, measurement_ComputationTime_CanonicalBase) = measureExecutionTime {
-      if (withDisjointnessAxioms)
-        LinCbO.computeCanonicalBase(cxt)
-//        mutable.ArrayBuffer.empty
-      else
-        LinCbO.computeCanonicalBase(cxt, cxt.commonObjects(_).nonEmpty)
-    }
-    logger.println("Computing the canonical base with LinCbO/Scala took " + formatTime(measurement_ComputationTime_CanonicalBase))
-    val measurement_Number_ImplicationsInCanonicalBase = cbase.size
-    logger.println(measurement_Number_ImplicationsInCanonicalBase + " implications in canonical base")
-    val measurement_Number_ImplicationsInFinalBase =
-      if canonicalDisjointnessAxioms
-      then measurement_Number_ImplicationsInCanonicalBase
-      else measurement_Number_ImplicationsInCanonicalBase + measurement_Number_FastDisjointnessAxioms
-    //    logger.println(cbase.filter((_, ys) => !ys.contains(0)).size + " implications in canonical base that are no disjointness axiom")
-    //    logger.println(cbase.filter((xs, _) => xs.contains(0)).size + " implications contain OWLNothing in the premise")
-    logger.println()
-
-
-
-//    val (base, measurement_ComputationTime_CanonicalBaseJKK) =
+//    val (cbase, measurement_ComputationTime_CanonicalBase) = measureExecutionTime {
+//      if (withDisjointnessAxioms)
+//        LinCbO.computeCanonicalBase(cxt)
+////        mutable.ArrayBuffer.empty
+//      else
+//        LinCbO.computeCanonicalBase(cxt, cxt.commonObjects(_).nonEmpty)
+//    }
+//    logger.println("Computing the canonical base with LinCbO/Scala took " + formatTime(measurement_ComputationTime_CanonicalBase))
+//    val measurement_Number_ImplicationsInCanonicalBase = cbase.size
+//    logger.println(measurement_Number_ImplicationsInCanonicalBase + " implications in canonical base")
+//    val measurement_Number_ImplicationsInFinalBase =
+//      if canonicalDisjointnessAxioms
+//      then measurement_Number_ImplicationsInCanonicalBase
+//      else measurement_Number_ImplicationsInCanonicalBase + measurement_Number_FastDisjointnessAxioms
+//    //    logger.println(cbase.filter((_, ys) => !ys.contains(0)).size + " implications in canonical base that are no disjointness axiom")
+//    //    logger.println(cbase.filter((xs, _) => xs.contains(0)).size + " implications contain OWLNothing in the premise")
+//    logger.println()
+//
+//
+//
+////    val (base, measurement_ComputationTime_CanonicalBaseJKK) =
+////      if (withDisjointnessAxioms)
+////        LinCbO_JKK.computeCanonicalBase(cxt, ont)
+////      else
+////        (Seq.empty, -1l)
+////    logger.println("Computing the canonical base with LinCbO/C++ took " + formatTime(measurement_ComputationTime_CanonicalBaseJKK))
+////    val measurement_Number_ImplicationsInCanonicalBaseJKK = base.size
+////    logger.println(measurement_Number_ImplicationsInCanonicalBaseJKK + " implications in canonical base")
+////    logger.println()
+//    val (measurement_Number_ImplicationsInCanonicalBaseJKK, measurement_ComputationTime_CanonicalBaseJKK) =
 //      if (withDisjointnessAxioms)
 //        LinCbO_JKK.computeCanonicalBase(cxt, ont)
 //      else
-//        (Seq.empty, -1l)
+//        (-1, -1l)
 //    logger.println("Computing the canonical base with LinCbO/C++ took " + formatTime(measurement_ComputationTime_CanonicalBaseJKK))
-//    val measurement_Number_ImplicationsInCanonicalBaseJKK = base.size
 //    logger.println(measurement_Number_ImplicationsInCanonicalBaseJKK + " implications in canonical base")
 //    logger.println()
-    val (measurement_Number_ImplicationsInCanonicalBaseJKK, measurement_ComputationTime_CanonicalBaseJKK) =
-      if (withDisjointnessAxioms)
-        LinCbO_JKK.computeCanonicalBase(cxt, ont)
-      else
-        (-1, -1l)
-    logger.println("Computing the canonical base with LinCbO/C++ took " + formatTime(measurement_ComputationTime_CanonicalBaseJKK))
-    logger.println(measurement_Number_ImplicationsInCanonicalBaseJKK + " implications in canonical base")
-    logger.println()
 
-
+    val measurement_ComputationTime_CanonicalBaseJKK = ""
+    val measurement_ComputationTime_CanonicalBase = ""
+    val measurement_Number_ImplicationsInFinalBase = ""
+    val measurement_Number_ImplicationsInCanonicalBase = ""
+    val measurement_Number_ImplicationsInCanonicalBaseJKK = ""
 
     val (cbaseBack, measurement_ComputationTime_RelativeCanonicalBase) = measureExecutionTime {
       if (withDisjointnessAxioms)
@@ -826,12 +830,12 @@ object Axiomatization {
     logger.println("Number of disjointness axioms in TBox ............................... " + measurement_Number_DisjointnessAxiomsInTBox)
     logger.println("Time for computing the background implications ...................... " + formatTime(measurement_ComputationTime_BackgroundImplications))
     logger.println("Number of background implications ................................... " + measurement_Number_BackgroundImplications)
-    logger.println("Time for computing the canonical base with LinCbO/C++ ............... " + formatTime(measurement_ComputationTime_CanonicalBaseJKK))
-    logger.println("Time for computing the canonical base with LinCbO/Scala ............. " + formatTime(measurement_ComputationTime_CanonicalBase))
+//    logger.println("Time for computing the canonical base with LinCbO/C++ ............... " + formatTime(measurement_ComputationTime_CanonicalBaseJKK))
+//    logger.println("Time for computing the canonical base with LinCbO/Scala ............. " + formatTime(measurement_ComputationTime_CanonicalBase))
     logger.println("Time for computing the relative canonical base with BLinCbO/Scala ... " + formatTime(measurement_ComputationTime_RelativeCanonicalBase))
-    logger.println("Number of implications in final base ................................ " + measurement_Number_ImplicationsInFinalBase)
-    logger.println("  among which are no fast disjointness axiom (LinCbO/Scala) ......... " + measurement_Number_ImplicationsInCanonicalBase)
-    logger.println("  among which are no fast disjointness axiom (LinCbO/C++) ........... " + measurement_Number_ImplicationsInCanonicalBaseJKK)
+//    logger.println("Number of implications in final base ................................ " + measurement_Number_ImplicationsInFinalBase)
+//    logger.println("  among which are no fast disjointness axiom (LinCbO/Scala) ......... " + measurement_Number_ImplicationsInCanonicalBase)
+//    logger.println("  among which are no fast disjointness axiom (LinCbO/C++) ........... " + measurement_Number_ImplicationsInCanonicalBaseJKK)
     logger.println("  among which are fast disjointness axioms .......................... " + measurement_Number_FastDisjointnessAxioms)
     logger.println("Number of implications in final relative base ....................... " + measurement_Number_ImplicationsInFinalRelativeBase)
     logger.println("  among which are no fast disjointness axiom (BLinCbO/Scala) ........ " + measurement_Number_ImplicationsInRelativeCanonicalBase)
