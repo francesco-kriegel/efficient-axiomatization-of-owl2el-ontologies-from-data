@@ -15,7 +15,7 @@ import scala.jdk.StreamConverters.*
 
 object Interpretation {
 
-  def loadFromOntologyFile(ontology: OWLOntology): BitGraph[OWLClass, OWLObjectProperty] = {
+  def fromOntology(ontology: OWLOntology): BitGraph[OWLClass, OWLObjectProperty] = {
 
     val variables = mutable.HashMap[OWLClassExpression, OWLAnonymousIndividual]()
 
@@ -69,13 +69,16 @@ object Interpretation {
     (ontology.individualsInSignature().toScala(LazyList) concat ontology.anonymousIndividuals().toScala(LazyList))
       .foreach(individual => {
         index(individual) = k
-        graph.addNode(k)
+//        graph.addNode(k)
         k += 1
       })
+    graph.nodes().addAll(0 until k)
     ontology.classesInSignature().toScala(LazyList).filterNot(_ equals OWLThing).filterNot(_ equals OWLNothing)
       .foreach(graph.labels().addOne(_))
+//    graph.labels().addAll(ontology.classesInSignature().toScala(LazyList).filterNot(_ equals OWLThing).filterNot(_ equals OWLNothing))
     ontology.objectPropertiesInSignature().toScala(LazyList)
       .foreach(graph.relations().addOne(_))
+//    graph.relations().addAll(ontology.objectPropertiesInSignature().toScala(LazyList))
     ontology.axioms().toScala(LazyList)
       .foreach({
         case ClassAssertion(_, c@Class(_), x) if !(c equals OWLNothing) && !(c equals OWLThing) =>
@@ -119,7 +122,8 @@ object Interpretation {
 
     //     val R = new mutable.HashMap[(OWLIndividual, OWLObjectProperty), mutable.Set[OWLIndividual]]
     //    val bitR = new LongBitRelation[(OWLIndividual, OWLObjectProperty), OWLIndividual]
-    val bitR = BitMap[(Int, OWLObjectProperty)]()
+    //val bitR = BitMap[(Int, OWLObjectProperty)]()
+    val bitR = ConcurrentBitMap[(Int, OWLObjectProperty)](graph.nodes().size - 1)
 
     for (x <- graph.nodes().par) {
       logger.tick()
@@ -131,9 +135,9 @@ object Interpretation {
             //            R.synchronized {
             //              R.getOrElseUpdate((x, property), { mutable.HashSet[OWLIndividual]() }).addOne(yy)
             //            }
-            bitR.synchronized {
+//            bitR.synchronized {
               bitR.add((x, property), yy)
-            }
+//            }
           }
         }
       }
@@ -186,8 +190,8 @@ object Interpretation {
 
   }
 
-  def reductionOf(graph: BitGraph[OWLClass, OWLObjectProperty], withMapping: Boolean = false)(using logger: Logger):
-  (BitGraph[OWLClass, OWLObjectProperty], Int => mutable.BitSet, Int => Int) = {
+  def reductionOf(graph: BitGraph[OWLClass, OWLObjectProperty])(using logger: Logger):
+  (BitGraph[OWLClass, OWLObjectProperty], Int => mutable.BitSet, Int => Int, BitBiMap) = {
 
     val simulation = maximalSimulationOn(graph)
 
@@ -215,9 +219,6 @@ object Interpretation {
 
     logger.println("Computing reduction...")
 
-    val reduction = BitGraph[OWLClass, OWLObjectProperty]()
-    reduction.labels().addAll(graph.labels())
-    reduction.relations().addAll(graph.relations())
     //    equivalenceClasses.map(_.hashCode).foreach(reduction.addNode(_))
     //    val index = mutable.HashMap[collection.Set[OWLIndividual], Int]()
     val index = mutable.HashMap[mutable.BitSet, Int]()
@@ -227,36 +228,54 @@ object Interpretation {
     var i = 0
     for (xs <- equivalenceClasses) {
       index(xs) = i
-      if (withMapping)
-        xs.foreach(representedBy(_) = i)
-        representativeOf(i) = xs
+      xs.foreach(representedBy(_) = i)
+      representativeOf(i) = xs
       i += 1
     }
 //    val n = i - 1
+    val reduction = BitGraph[OWLClass, OWLObjectProperty]()
+    val simulationOnReduction = BitBiMap()
+    reduction.nodes().addAll(0 until i)
+    reduction.labels().addAll(graph.labels())
+    reduction.relations().addAll(graph.relations())
     //    val ecPar = new scala.collection.parallel.mutable.ParArray[Set[OWLIndividual]](equivalenceClasses.toArray)
-    for (xs <- equivalenceClasses) {
+    for (xs <- equivalenceClasses.par) {
       logger.tick()
-      reduction.addNode(index(xs))
+      val i = index(xs)
+      val x = xs.head
+//      reduction.addNode(index(xs))
       //      graph.labels(xs.head).foreach(reduction.addLabel(index(xs), _))
-      if (graph.labels(xs.head).nonEmpty)
-        reduction.addLabels(index(xs), graph.labels(xs.head))
+      val labels = graph.labels(x)
+      if (labels.nonEmpty)
+        reduction._labelsByNode.synchronized {
+          reduction.addLabels(i, labels)
+        }
       for (ys <- equivalenceClasses) {
-        graph.successorRelations(xs.head).foreach(r => {
+        val j = index(ys)
+        val y = ys.head
+        if (simulation(x, y)) {
+          simulationOnReduction.synchronized {
+            simulationOnReduction.add(i, j)
+          }
+        }
+        graph.successorRelations(x).foreach(r => {
           //          if (graph.successorsForRelation(xs.head, r).exists(simulation(ys.head, _))
           //            && graph.successorsForRelation(xs.head, r).forall(z => !simulation(ys.head, z) || simulation(z, ys.head))) {
-          if ((graph.successorsForRelation(xs.head, r) intersect (simulation.row(ys.head) + ys.head)).nonEmpty
-            && (graph.successorsForRelation(xs.head, r) intersect (simulation.row(ys.head) diff simulation.col(ys.head))).isEmpty) {
-            reduction.addEdge(index(xs), r, index(ys))
+          // if ((graph.successorsForRelation(x, r) intersect (simulation.row(y) + y)).nonEmpty
+          //  && (graph.successorsForRelation(x, r) intersect (simulation.row(y) diff simulation.col(y))).isEmpty) {
+          val successors = graph.successorsForRelation(x, r)
+          val sir = successors intersect simulation.row(y)
+          if ((successors.contains(y) || sir.nonEmpty) && (sir diff simulation.col(y)).isEmpty) {
+            reduction.synchronized {
+              reduction.addEdge(i, r, j)
+            }
           }
         })
       }
     }
     logger.reset()
 
-    if (withMapping)
-      (reduction, representativeOf, representedBy)
-    else
-      (reduction, PartialFunction.empty, PartialFunction.empty)
+    (reduction, representativeOf, representedBy, simulationOnReduction)
 
   }
 

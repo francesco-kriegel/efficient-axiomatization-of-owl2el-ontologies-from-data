@@ -20,9 +20,21 @@ object Main {
           if (answer.startsWith("c")) WhichDisjointnessAxioms.Canonical
           else if (answer.startsWith("f")) WhichDisjointnessAxioms.Fast
           else WhichDisjointnessAxioms.None
-        println()
+        print("Please specify a role depth bound (as number) or type 'none'. ")
+        val maxRoleDepth = readLine().toLowerCase.toIntOption
+        print("Please specify maximal conjunction size (as number) or type 'none'. ")
+        val maxConjunctionSize = readLine().toLowerCase.toIntOption
+//        print("Please specify minimal size of premises' extents (as number) or type 'none'. ")
+//        val maybeMinPremiseExtentSize = readLine().toLowerCase.toIntOption
         given logger: Logger = ConsoleLogger()
-        Axiomatization.run(ontologyFile, ont, disjointnessAxioms)
+        println()
+        println("Configuration:")
+        println("ORE2015 ontology: " + ont)
+        println("Disjointness axioms: " + disjointnessAxioms)
+        println("Role depth bound: " + maxRoleDepth.map(_.toString).orElse(Some("none")).get)
+        println("Maximal conjunction size: " + maxConjunctionSize.map(_.toString).orElse(Some("none")).get)
+//        println("Minimal premise extent size: " + maybeMinPremiseExtentSize.map(_.toString).orElse(Some("none")).get)
+        Axiomatization.run(ontologyFile, ont, disjointnessAxioms, maxConjunctionSize, maxRoleDepth)
 
       } else {
 
@@ -39,7 +51,9 @@ object Main {
           if args(3).toLowerCase.startsWith("quiet")
           then NoLogger()
           else ConsoleLogger()
-        Axiomatization.run(ontologyFile, ont, disjointnessAxioms, onlyComputeReduction)
+        val maxRoleDepth = args(4).toIntOption
+        val maxConjunctionSize = args(5).toIntOption
+        Axiomatization.run(ontologyFile, ont, disjointnessAxioms, maxConjunctionSize, maxRoleDepth, onlyComputeReduction)
 
       }
 

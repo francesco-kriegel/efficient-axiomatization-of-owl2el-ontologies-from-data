@@ -6,7 +6,7 @@ import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-class BitSetToIntRelation {
+class BitSetToIntRelationThatExtendsInverseElementhood {
 
   private val bits = collection.concurrent.TrieMap[collection.BitSet, mutable.BitSet]()
 
@@ -28,6 +28,32 @@ class BitSetToIntRelation {
     else xs
 
   def rawRow(xs: collection.BitSet): collection.BitSet =
+    bits.getOrElse(xs, BitSet.empty)
+
+  def rows = bits.keySet
+
+  def clear(): Unit =
+    bits.clear()
+
+}
+
+class BitSetToIntRelation {
+
+  private val bits = collection.concurrent.TrieMap[collection.BitSet, mutable.BitSet]()
+
+  def add(xs: collection.BitSet, y: Int): Unit =
+    bits.getOrElseUpdate(xs, mutable.BitSet()).addOne(y)
+
+  def remove(xs: collection.BitSet, y: Int): Unit =
+    if (bits.contains(xs)) bits(xs).remove(y)
+
+  def contains(xs: collection.BitSet, y: Int): Boolean =
+    bits.contains(xs) && bits(xs)(y)
+
+  def apply(xs: collection.BitSet, y: Int): Boolean =
+    contains(xs, y)
+
+  def row(xs: collection.BitSet): collection.BitSet =
     bits.getOrElse(xs, BitSet.empty)
 
   def rows = bits.keySet
@@ -387,6 +413,7 @@ class BitMap[T] {
 
 class BitBiMap extends BitMap[Int] {
 
+  // TODO: Replace HashMap[Int, T] with Array[T] if upper bound for keys is known, otherwise use ArrayBuffer[T]
   private val colMap = mutable.HashMap[Int, mutable.BitSet]()
 
   override def add(x: Int, y: Int): Unit = {
@@ -409,6 +436,77 @@ class BitBiMap extends BitMap[Int] {
 
   def clearCol(y: Int): Unit = {
     colMap.remove(y)
+  }
+
+}
+
+class ArrayBitBiMap(rows: Int, cols: Int) {
+
+  private val rowArray = new scala.Array[mutable.BitSet](rows)
+  private val colArray = new scala.Array[mutable.BitSet](cols)
+  (0 until rows).foreach(i => rowArray(i) = mutable.BitSet())
+  (0 until cols).foreach(j => colArray(j) = mutable.BitSet())
+
+  def add(x: Int, y: Int): Unit = {
+    rowArray(x).addOne(y)
+    colArray(y).addOne(x)
+  }
+
+  def apply(x: Int, y: Int): Boolean = {
+    contains(x, y)
+  }
+
+  def contains(x: Int, y: Int): Boolean = {
+    rowArray(x)(y)
+  }
+
+  def remove(x: Int, y: Int): Unit = {
+    rowArray(x).remove(y)
+    colArray(y).remove(x)
+  }
+
+  def row(x: Int): mutable.BitSet = {
+    rowArray(x)
+  }
+
+  def col(y: Int): mutable.BitSet = {
+    colArray(y)
+  }
+
+}
+
+class ConcurrentBitMap[T](maxY: Int) {
+
+  private val rowMap = scala.collection.concurrent.TrieMap[T, concurrent.ConcurrentBoundedBitSet]()
+
+  def add(x: T, y: Int): Unit = {
+    rowMap.getOrElseUpdate(x, concurrent.ConcurrentBoundedBitSet(maxY)).add(y)
+  }
+
+  def apply(x: T, y: Int): Boolean = {
+    contains(x, y)
+  }
+
+  def contains(x: T, y: Int): Boolean = {
+    rowMap.get(x).map(_.contains(y)).getOrElse(false)
+  }
+
+  def remove(x: T, y: Int): Unit = {
+    rowMap.get(x).foreach(_.remove(y))
+  }
+
+  def rows(): collection.Set[T] = {
+    rowMap.keySet
+  }
+
+  def row(x: T): scala.collection.immutable.BitSet = {
+    if rowMap.contains(x)
+    then rowMap(x).asImmutableBitSet()
+    else scala.collection.immutable.BitSet.empty
+  }
+
+  def clearRow(x: T): Unit = {
+    rowMap.remove(x)
   }
 
 }

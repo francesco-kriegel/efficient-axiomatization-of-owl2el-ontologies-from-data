@@ -4,9 +4,65 @@ package axiomatization
 import org.phenoscape.scowl.*
 import org.semanticweb.owlapi.model.{OWLClass, OWLIndividual, OWLObjectProperty, OWLOntology}
 
+import scala.collection.BitSet.fromSpecific
 import scala.collection.{IterableOps, StrictOptimizedIterableOps, mutable}
 import scala.collection.mutable.ListBuffer
 import scala.jdk.StreamConverters.*
+
+object Graph {
+
+  def product(graph1: BitGraph[OWLClass, OWLObjectProperty], x1: Int,
+              graph2: BitGraph[OWLClass, OWLObjectProperty], x2: Int): (BitGraph[OWLClass, OWLObjectProperty], Int) = {
+    val productGraph = BitGraph[OWLClass, OWLObjectProperty]()
+    val root = (x1, x2)
+    productGraph.labels().addAll(graph1.labels())
+    productGraph.labels().addAll(graph2.labels())
+    productGraph.relations().addAll(graph1.relations())
+    productGraph.relations().addAll(graph2.relations())
+    var i = 0
+    val index = mutable.ArrayBuffer[(Int, Int)]()
+    val table = mutable.HashMap[(Int, Int), Int]()
+
+    def addNodeToProduct(pair: (Int, Int)): Boolean = {
+      !table.contains(pair) && {
+        index.addOne(pair)
+        table(pair) = i
+        productGraph.nodes().addOne(i)
+        i += 1
+        true
+      }
+    }
+
+    def extendProduct(pairs: Iterable[(Int, Int)], edges: Iterable[((Int, Int), OWLObjectProperty, (Int, Int))]): Unit = {
+      val nextPairs = mutable.HashSet[(Int, Int)]()
+      val nextEdges = mutable.HashSet[((Int, Int), OWLObjectProperty, (Int, Int))]()
+      pairs.foreach(pair => {
+        if (addNodeToProduct(pair)) {
+          productGraph.addLabels(table(pair), graph1.labels(pair._1) intersect graph2.labels(pair._2))
+          (graph1.successorRelations(pair._1) intersect graph2.successorRelations(pair._2)).foreach(r => {
+            graph1.successorsForRelation(pair._1, r).foreach(y1 => {
+              graph2.successorsForRelation(pair._2, r).foreach(y2 => {
+                val nextPair = (y1, y2)
+                nextPairs.addOne(nextPair)
+                nextEdges.addOne((pair, r, nextPair))
+              })
+            })
+          })
+        }
+      })
+      edges.foreach {
+        case (source, r, target) => productGraph.addEdge(table(source), r, table(target))
+      }
+      if (nextPairs.nonEmpty || nextEdges.nonEmpty)
+        extendProduct(nextPairs, nextEdges)
+    }
+
+    extendProduct(Iterable.single(root), Iterable.empty)
+    (productGraph, table(root))
+  }
+
+}
+
 
 trait Graph[N, L, R] {
 
@@ -131,7 +187,7 @@ class HashGraph[N, L, R](val initNodes: N*) extends Graph[N, L, R] {
 //
 //}
 
-class BitGraph[L, R](val initNodes: Int*) { //extends Graph[mutable.HashSet, Int, L, R] {
+class BitGraph[L, R](val initNodes: Int*) extends Graph[Int, L, R] {
 
   val _nodes = mutable.BitSet()
   val _labels = mutable.ArrayBuffer[L]()

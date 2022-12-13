@@ -21,7 +21,6 @@ import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
 import scala.jdk.CollectionConverters.*
 import de.tu_dresden.inf.lat.axiomatization.Interpretation
-import de.tu_dresden.inf.lat.axiomatization.PoweringClosureOperator_Incremental
 import de.tu_dresden.inf.lat.axiomatization.Util.{LocalSet, fixedPoint, formatTime, intersectionOfBitSets, measureExecutionTime}
 import org.semanticweb.elk.owlapi.ElkReasonerFactory
 import org.semanticweb.owlapi.formats.ManchesterSyntaxDocumentFormat
@@ -47,10 +46,16 @@ object Axiomatization {
 
   def run(ontologyFile: File,
           ont: String,
-          whichDisjointnessAxioms: WhichDisjointnessAxioms = WhichDisjointnessAxioms.None,
+          whichDisjointnessAxioms: WhichDisjointnessAxioms,
+          maxConjunctionSize: Option[Int],
+          maxRoleDepth: Option[Int],
           onlyComputeReduction: Boolean = false)
          (using logger: Logger): Unit = {
 
+    if (maxConjunctionSize.isDefined && (maxConjunctionSize.get < 0))
+      throw IllegalArgumentException()
+    if (maxRoleDepth.isDefined && (maxRoleDepth.get < 0))
+      throw IllegalArgumentException()
 
     val withDisjointnessAxioms = !(whichDisjointnessAxioms equals WhichDisjointnessAxioms.None)
     val canonicalDisjointnessAxioms = whichDisjointnessAxioms equals WhichDisjointnessAxioms.Canonical
@@ -92,7 +97,7 @@ object Axiomatization {
 
     val manager = OWLManager.createOWLOntologyManager()
     val ontology = manager.loadOntologyFromOntologyDocument(if reductionHasBeenPrecomputed then reducedOntologyFile else ontologyFile)
-    val graph = Interpretation.loadFromOntologyFile(ontology)
+    val graph = Interpretation.fromOntology(ontology)
     val elbotTBox =
       if reductionHasBeenPrecomputed
       then ontology.tboxAxioms(Imports.INCLUDED).toScala(LazyList).toList
@@ -119,9 +124,9 @@ object Axiomatization {
 
 
 
-    val ((reduction, _, _), measurement_ComputationTime_FirstReduction) =
+    val ((reduction, _, _, _), measurement_ComputationTime_FirstReduction) =
       if reductionHasBeenPrecomputed
-      then ((graph, PartialFunction.empty, PartialFunction.empty), statisticsFromFile(3).toLong)
+      then ((graph, PartialFunction.empty, PartialFunction.empty, BitBiMap()), statisticsFromFile(3).toLong)
       else measureExecutionTime { Interpretation.reductionOf(graph) }
     logger.println("Reducing the input interpretation took " + formatTime(measurement_ComputationTime_FirstReduction))
 
@@ -226,7 +231,7 @@ object Axiomatization {
 
 
 
-    var (reducedCanonicalModel, _rcmRepresentedBy, _rcmRepresentativeOf) = Interpretation.reductionOf(elk.canonicalModel, true)
+    var (reducedCanonicalModel, _rcmRepresentedBy, _rcmRepresentativeOf, simulationOnRCM) = Interpretation.reductionOf(elk.canonicalModel)
     val n = reducedCanonicalModel.nodes().size
     val measurement_Number_ObjectsInReducedCanonicalModel = n
 
@@ -255,17 +260,25 @@ object Axiomatization {
       remapToRCM(j) = i; remapFromRCM(i) = j; j += 1
     })
     val remappedRCM = BitGraph[OWLClass, OWLObjectProperty]()
+    val remappedSim = BitBiMap()
+    remappedRCM.nodes().addAll(0 until n)
     remappedRCM.labels().addAll(reducedCanonicalModel.labels())
     remappedRCM.relations().addAll(reducedCanonicalModel.relations())
     (0 until n).foreach(i => {
-      remappedRCM.addNode(i)
+//      remappedRCM.addNode(i)
       remappedRCM.addLabels(i, reducedCanonicalModel.labels(remapToRCM(i)))
       reducedCanonicalModel.predecessors(remapToRCM(i)).foreach((r, j) => {
         remappedRCM.addEdge(remapFromRCM(j), r, i)
       })
+      (0 until n).foreach(j => {
+        if (simulationOnRCM(remapToRCM(i), remapToRCM(j))) {
+          remappedSim.add(i, j)
+        }
+      })
     })
 
     reducedCanonicalModel = remappedRCM
+    simulationOnRCM = remappedSim
 
     def rcmRepresentedBy(i: Int): collection.Set[Int | OWLClassExpression] = {
       _rcmRepresentedBy(remapToRCM(i)).unsorted.map(elk.withNumber)
@@ -324,14 +337,20 @@ object Axiomatization {
       ms.exists(m => reducedCanonicalModel.predecessors(m).nonEmpty)
     }
 //    given valueLogger: ValueLogger = FileValueLogger("ore2015_pool_sample_experiments/closures/" + ont + ".csv", whichDisjointnessAxioms.toString)
-    val (closures, measurement_ComputationTime_Closures) = measureExecutionTime {
-      if (withDisjointnessAxioms)
-        FCbO.computeAllClosures(n, PoweringClosureOperator(reducedCanonicalModel))
-      else
-        FCbO.computeAllClosures(n, PoweringClosureOperator(reducedCanonicalModel), isOccupiedAttribute)
+    val (closureToGeneratorMap, measurement_ComputationTime_Closures) = measureExecutionTime {
+      if (maxRoleDepth.isDefined && (maxRoleDepth.get equals 0))
+        mutable.HashMap.empty[collection.BitSet, collection.BitSet]
+      else {
+        if (withDisjointnessAxioms)
+          FCbOPar.computeAllClosures(n, PoweringClosureOperator2(reducedCanonicalModel, Some(simulationOnRCM), maxConjunctionSize, false, maxRoleDepth.map(_ - 1)))
+            .subtractOne(reducedCanonicalModel.nodes())
+        else
+          FCbOPar.computeAllClosures(n, PoweringClosureOperator2(reducedCanonicalModel, Some(simulationOnRCM), maxConjunctionSize, false, maxRoleDepth.map(_ - 1)), isOccupiedAttribute)
+            .subtractOne(reducedCanonicalModel.nodes())
+      }
     }
 //    valueLogger.close()
-    val measurement_Number_Closures = closures.size
+    val measurement_Number_Closures = closureToGeneratorMap.keySet.size
     logger.println("FCbO computed " + measurement_Number_Closures + " closures in " + formatTime(measurement_ComputationTime_Closures))
     logger.println()
     logger.reset()
@@ -368,7 +387,7 @@ object Axiomatization {
     )
 
     val (cxt, measurement_ComputationTime_InducedContext) = measureExecutionTime {
-      val cxt = InducedFormalContext(reducedCanonicalModel, rcmRepresentsIndividual, closures, whichDisjointnessAxioms)
+      val cxt = InducedFormalContext(reducedCanonicalModel, rcmRepresentsIndividual, closureToGeneratorMap.keySet, whichDisjointnessAxioms)
       cxt.objects
       cxt.activeAttributes
       cxt.activeAttributeIndex
@@ -467,7 +486,7 @@ object Axiomatization {
       case ObjectSomeValuesFrom(_, filler) => filler
     }))
 
-    val (reducedCanonicalModel2, _rcmRepresentedBy2, _rcmRepresentativeOf2) = Interpretation.reductionOf(elk.canonicalModel, true)
+    val (reducedCanonicalModel2, _rcmRepresentedBy2, _rcmRepresentativeOf2, _) = Interpretation.reductionOf(elk.canonicalModel)
 
     def rcmRepresentedBy2(i: Int): collection.Set[Int | OWLClassExpression] = {
       _rcmRepresentedBy2(i).unsorted.map(elk.withNumber)
@@ -513,8 +532,9 @@ object Axiomatization {
     insertIntoTBoxSaturation(reducedCanonicalModel2.nodes().filter(rcmRepresentsClassExpression2))
 
 //    val clop = PoweringClosureOperator(tboxSaturation)
-    val clop = PoweringClosureOperator_CachedValues(tboxSaturation)
 //    val clop = PoweringClosureOperator_Incremental(tboxSaturation)
+//    val clop = PoweringClosureOperator2_CachedValues(tboxSaturation)
+    val poweringSimulator = PoweringSimulator2(reducedCanonicalModel, Some(simulationOnRCM), maxRoleDepth.map(_ - 1), tboxSaturation, true)
 
     def simulates(succ: collection.BitSet | OWLClassExpression, filler: OWLClassExpression): Boolean = {
       succ match
@@ -611,7 +631,7 @@ object Axiomatization {
           // (5)   {∃r.C} → {(r,X)}  if  C simulates X, i.e., there is a simulation from (𝔓(𝓘),X) to (𝓘_𝓣,C)
 //          case pair2 @ (property2: OWLObjectProperty, mmsc2: collection.BitSet)
           case pair2 @ ObjectSomeValuesFromMMSC(property2, mmsc2)
-            if (property1 equals property2) && (clop(mmsc2) contains rcmRepresentativeOf2(filler1)) => extendedAttributeIndex(pair2)
+            if (property1 equals property2) && (poweringSimulator(closureToGeneratorMap(mmsc2)) contains rcmRepresentativeOf2(filler1)) => extendedAttributeIndex(pair2)
 //            if (property1 equals property2)
 //              && (existentialRestrictionsInConclusions contains exr1)
 //              && (clop(mmsc2) contains rcmRepresentativeOf2(filler1)) => extendedAttributeIndex(pair2)
@@ -762,8 +782,11 @@ object Axiomatization {
     val (cbaseBack, measurement_ComputationTime_RelativeCanonicalBase) = measureExecutionTime {
       if (withDisjointnessAxioms)
         LinCbOWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length)
-      else
-        LinCbOWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length, ms => cxt.commonObjects(ms intersect cxt.bitsActiveAttributes).nonEmpty)
+      else // TODO: inclusion ideal could also check if at least n objects satisfy the premise (or a percentage of all objects), and/or if the premise contains at most k attributes
+        LinCbOWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length,
+          if maxConjunctionSize.isEmpty
+          then ms => cxt.commonObjects(ms intersect cxt.bitsActiveAttributes).nonEmpty
+          else ms => (ms.size <= maxConjunctionSize.get) && cxt.commonObjects(ms intersect cxt.bitsActiveAttributes).nonEmpty)
     }
     logger.println("Computing the relative canonical base with BLinCbO/Scala took " + formatTime(measurement_ComputationTime_RelativeCanonicalBase))
     val measurement_Number_ImplicationsInRelativeCanonicalBase = cbaseBack.size

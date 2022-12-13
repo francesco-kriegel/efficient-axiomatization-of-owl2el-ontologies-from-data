@@ -1,6 +1,7 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
+import collection.parallel.CollectionConverters.*
 import org.phenoscape.scowl.*
 import scala.jdk.StreamConverters.*
 
@@ -126,6 +127,9 @@ object Evaluation {
     val Number_TypeTriplesPerObjectOnAverageInInput: Float = getInputStatistics(ont).Number_TypeTriplesPerObjectOnAverage
     val Number_RelationTriplesPerObjectOnAverageInInput: Float = getInputStatistics(ont).Number_RelationTriplesPerObjectOnAverage
 
+    val Number_IrreduciblesInReduction: Option[Int] = irreduciblesStatistics.get(ont).map(_._1)
+    val Ratio_IrreduciblesInReduction: Option[Float] = irreduciblesStatistics.get(ont).map(_._3)
+
     override def toString: String = {
       "ore-ont-" + ont + ";" +
       mode + ";" +
@@ -176,7 +180,9 @@ object Evaluation {
       Flag_AcyclicInput.toString + ";" +
       Number_TriplesPerObjectOnAverageInInput.toString + ";" +
       Number_TypeTriplesPerObjectOnAverageInInput.toString + ";" +
-      Number_RelationTriplesPerObjectOnAverageInInput.toString + "\n"
+      Number_RelationTriplesPerObjectOnAverageInInput.toString + ";" +
+      Number_IrreduciblesInReduction.map(_.toString).getOrElse("") + ";" +
+      Ratio_IrreduciblesInReduction.map(_.toString).getOrElse("") + "\n"
     }
 
     private def computationTimeToString(maybeComputationTime: Option[Long]): String = {
@@ -212,7 +218,7 @@ object Evaluation {
       val owlFileInputOntology = java.io.File(inputOntologiesFolder, "ore_ont_" + ont + ".owl")
       val owlManager = org.semanticweb.owlapi.apibinding.OWLManager.createOWLOntologyManager()
       val owlOntologyInputOntology = owlManager.loadOntologyFromOntologyDocument(owlFileInputOntology)
-      val graph = Interpretation.loadFromOntologyFile(owlOntologyInputOntology)
+      val graph = Interpretation.fromOntology(owlOntologyInputOntology)
 
       val Number_ObjectsInDomain = graph.nodes().size
       val Flag_Acyclic = hasAcyclicABox(graph)
@@ -328,7 +334,7 @@ object Evaluation {
           val owlFileReduction = java.io.File(reductionsFolder, "ore_ont_" + ont + "_reduced.owl")
           val owlManager = org.semanticweb.owlapi.apibinding.OWLManager.createOWLOntologyManager()
           val owlOntologyReduction = owlManager.loadOntologyFromOntologyDocument(owlFileReduction)
-          val graph = Interpretation.loadFromOntologyFile(owlOntologyReduction)
+          val graph = Interpretation.fromOntology(owlOntologyReduction)
 
           if (!(graph.nodes().size equals Number_ObjectsInReducedDomain))
             throw new RuntimeException()
@@ -479,12 +485,30 @@ object Evaluation {
         Mode.FastDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_Success.csv")),
         Mode.CanonicalDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_Success.csv"))
       )
+//    val writerSuccessFewerThanTen =
+//      Map[Mode, java.io.FileWriter](
+//        Mode.Reduction -> java.io.FileWriter(java.io.File(evaluationFolder, "Reduction_Success_FewerThan10.csv")),
+//        Mode.NoDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_Success_FewerThan10.csv")),
+//        Mode.FastDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_Success_FewerThan10.csv")),
+//        Mode.CanonicalDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_Success_FewerThan10.csv"))
+//      )
+//    val writerSuccessAtLeastTen =
+//      Map[Mode, java.io.FileWriter](
+//        Mode.Reduction -> java.io.FileWriter(java.io.File(evaluationFolder, "Reduction_Success_AtLeast10.csv")),
+//        Mode.NoDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_Success_AtLeast10.csv")),
+//        Mode.FastDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_Success_AtLeast10.csv")),
+//        Mode.CanonicalDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_Success_AtLeast10.csv"))
+//      )
     resultsMap.foreach({
       case ont -> results => {
         results.foreach(result => {
           writer(result.mode).write(result.toString)
           if (result.status equals Success())
             writerSuccess(result.mode).write(result.toString)
+//            if (reductionStatisticsMap(ont).Number_ObjectsInReducedDomain > 9)
+//              writerSuccessAtLeastTen(result.mode).write(result.toString)
+//            else
+//              writerSuccessFewerThanTen(result.mode).write(result.toString)
         })
       }
     })
@@ -538,9 +562,113 @@ object Evaluation {
 
   def main(args: Array[String]): Unit = {
     readAdditionalReductionStatistics()
+    computeIrreducibles()
     readResults()
     filterResults()
     writeEvaluationData()
+  }
+
+//  private def foo(): Unit = {
+//
+//    val OreOntology = raw"ore_ont_(\d+)(|_reduced).owl".r
+//
+//    val subs = scala.collection.immutable.Set("dl/classification", "dl/consistency", "dl/instantiation", "el/classification", "el/consistency", "el/instantiation")
+//      .map(sub => {
+//        val fileorder = java.io.File("/Users/francesco/workspace/Java_Scala/efficient-axiomatization-of-owl2el-ontologies-from-data/ore2015_pool_sample/" + sub + "/fileorder.txt")
+//        val source = scala.io.Source.fromFile(fileorder)
+//        val onts = source.getLines().map(OreOntology.findFirstMatchIn(_).get.group(1).toInt).toSet
+//        source.close()
+//        sub -> onts
+//      })
+//      .toMap
+//
+//    def getSubs(ont: Int): scala.collection.Set[String] = {
+//      subs.keySet.filter(subs(_) contains ont)
+//    }
+//
+//    ()
+//  }
+
+  val irreduciblesStatistics = scala.collection.mutable.HashMap[Int, (Int, Int, Float)]()
+
+  private def computeIrreducibles(): Unit = {
+
+    given logger: Logger = NoLogger()
+
+    val ReducedOreOntologyRegex = raw"ore_ont_(\d+)_reduced.owl".r
+    val SuccessRegex = raw";(None|Fast|Canonical);Success;".r.unanchored
+
+    val experimentFolder = java.io.File("/Users/francesco/workspace/Java_Scala/efficient-axiomatization-of-owl2el-ontologies-from-data/ore2015_pool_sample_experiments_russell_performance")
+    val reductionFolder = java.io.File(experimentFolder, "files")
+    val resultsFolder = java.io.File(experimentFolder, "results")
+
+    reductionFolder.listFiles().foreach(file => {
+
+      if (ReducedOreOntologyRegex matches file.getName) {
+
+        val ontology = org.semanticweb.owlapi.apibinding.OWLManager.createOWLOntologyManager().loadOntologyFromOntologyDocument(file)
+        val graph = Interpretation.fromOntology(ontology)
+        val size = graph.nodes().size
+
+        val ont = ReducedOreOntologyRegex.findFirstMatchIn(file.getName).get.group(1).toInt
+
+        val resultFile = java.io.File(resultsFolder, s"ore_ont_$ont.csv")
+        if (resultFile.exists()) {
+          val resultSource = scala.io.Source.fromFile(resultFile)
+          val tryComputeIrreducibles = resultSource.getLines().exists(SuccessRegex.matches)
+          resultSource.close()
+
+          if (tryComputeIrreducibles) {
+
+            println("Determining number of irreducibles in " + file)
+
+            val simulation = Interpretation.maximalSimulationOn(graph)
+
+            val strictlyAboveArray = new scala.Array[scala.collection.mutable.BitSet](size)
+            val doubleStrictlyAboveArray = new scala.Array[scala.collection.mutable.BitSet](size)
+            val upperNeighborsArray = new scala.Array[scala.collection.mutable.BitSet](size)
+
+            def arrayGetOrUpdate[T](array: scala.Array[T], index: Int, update: Int => T): T =
+              if (array(index) == null)
+                array(index) = update(index)
+              array(index)
+
+            def strictlyAbove(node: Int): scala.collection.mutable.BitSet =
+              arrayGetOrUpdate(strictlyAboveArray, node, n => {
+                simulation.row(n) diff simulation.col(n)
+              })
+
+            def doubleStrictlyAbove(node: Int): scala.collection.mutable.BitSet =
+              arrayGetOrUpdate(doubleStrictlyAboveArray, node, n => {
+                strictlyAbove(n).flatMap(strictlyAbove)
+              })
+
+            def upperNeighbors(node: Int): scala.collection.mutable.BitSet =
+              arrayGetOrUpdate(upperNeighborsArray, node, n => {
+                strictlyAbove(n) diff doubleStrictlyAbove(n)
+              })
+
+            val clop = PoweringClosureOperator(graph)
+
+            def isIrreducible(node: Int): Boolean = {
+              val uppers = upperNeighbors(node)
+              (uppers.size < 2) || !clop(uppers).contains(node)
+            }
+
+            val irreducibles = graph.nodes().par.filter(isIrreducible)
+
+            val ratio = (irreducibles.size.toFloat / size.toFloat) * 100f
+
+            irreduciblesStatistics.put(ont, (irreducibles.size, size, ratio))
+
+          }
+
+        }
+
+      }
+
+    })
+
   }
 
 

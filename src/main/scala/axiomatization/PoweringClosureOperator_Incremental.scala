@@ -67,7 +67,7 @@ class PoweringClosureOperator_Incremental(val reduction: BitGraph[OWLClass, OWLO
   }
 
   //    val poweringSimulation = ConcurrentRelation[mutable.BitSet, Int]()
-  val poweringSimulation = BitSetToIntRelation()
+  val poweringSimulation = BitSetToIntRelationThatExtendsInverseElementhood()
 
   //    def closure(_xs: BitSet): BitSet = {
   //      var __xs = mutable.BitSet()

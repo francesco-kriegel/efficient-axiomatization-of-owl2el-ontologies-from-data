@@ -3,6 +3,7 @@ package de.tu_dresden.inf.lat
 package axiomatization
 
 import scala.collection.mutable
+import scala.collection.parallel.CollectionConverters.*
 
 object Util {
 
@@ -36,6 +37,7 @@ object Util {
     }
   }
 
+  // TODO: Compute in parallel
   def intersectionOfBitSets(it: Iterator[mutable.BitSet], size: Int, domain: collection.BitSet): mutable.BitSet = {
     if (it.isEmpty)
 //      throw new IllegalArgumentException("Cannot compute empty intersection.")
@@ -49,7 +51,7 @@ object Util {
       })
       val nwords = elems.map(_.length).min
       val newElems = new Array[Long](nwords)
-      (0 until nwords).foreach(i => {
+      (0 until nwords).par.foreach(i => {
         newElems(i) = elems(0)(i)
         (1 until elems.length).foreach(n => newElems(i) &= elems(n)(i))
       })
@@ -59,6 +61,18 @@ object Util {
 
   implicit class LocalMultiMap[A, B](map: collection.Map[A, collection.mutable.Set[B]] with collection.mutable.MultiMap[A, B]) {
     def foreachBinding(f: (A, B) ⇒ Unit): Unit = {
+      map.foreach({ case (key, values) ⇒ values.foreach(value ⇒ f(key, value)) })
+    }
+  }
+
+  implicit class LocalMultiMapBits[A](map: mutable.Map[A, mutable.BitSet]) {
+    def addBinding(key: A, value: Int): Unit = {
+      map.getOrElseUpdate(key, mutable.BitSet()).addOne(value)
+    }
+    def removeBinding(key: A, value: Int): Unit = {
+      map.get(key).foreach(_.remove(value))
+    }
+    def foreachBinding(f: (A, Int) ⇒ Unit): Unit = {
       map.foreach({ case (key, values) ⇒ values.foreach(value ⇒ f(key, value)) })
     }
   }

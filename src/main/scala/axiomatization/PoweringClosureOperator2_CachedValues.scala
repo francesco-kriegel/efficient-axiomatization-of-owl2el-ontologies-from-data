@@ -3,33 +3,35 @@ package axiomatization
 
 import org.phenoscape.scowl.*
 import org.semanticweb.owlapi.apibinding.OWLManager
+import org.semanticweb.owlapi.model.*
 import org.semanticweb.owlapi.model.parameters.Imports
-import org.semanticweb.owlapi.model.{NodeID, OWLAnonymousIndividual, OWLClass, OWLClassExpression, OWLIndividual, OWLObjectProperty}
 import uk.ac.manchester.cs.owl.owlapi.OWLAnonymousIndividualImpl
 
-import java.io.{BufferedReader, BufferedWriter, File, FileReader, FileWriter}
+import java.io.*
 import java.text.SimpleDateFormat
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.collection.immutable.BitSet
 import scala.collection.mutable
-import scala.io.StdIn.readLine
-import scala.jdk.StreamConverters.*
-import util.control.Breaks.*
-import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
+import scala.collection.parallel.CollectionConverters.*
+import scala.io.StdIn.readLine
 import scala.jdk.CollectionConverters.*
+import scala.jdk.StreamConverters.*
+import scala.util.control.Breaks.*
 
-class PoweringClosureOperator_CachedValues(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
+@Deprecated
+class PoweringClosureOperator2_CachedValues(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
 
+  given logger: Logger = NoLogger()
+  val simulation = Interpretation.maximalSimulationOn(reduction)
   val poweringSimulation = BitSetToIntRelationThatExtendsInverseElementhood()
 
   def apply(xs: collection.BitSet): collection.BitSet = {
 
 //    if (xs.max >= reduction.nodes().size)
 //      throw new IllegalArgumentException()
-//    else
     if (poweringSimulation.rows.contains(xs))
       poweringSimulation.row(xs)
     else {
@@ -41,18 +43,28 @@ class PoweringClosureOperator_CachedValues(val reduction: BitGraph[OWLClass, OWL
         val next = mutable.HashSet[collection.BitSet]()
         for (xs <- current) {
           if (!powering.nodes().contains(xs)) {
+            if (!(xs subsetOf reduction.nodes()))
+              throw new IllegalArgumentException()
             powering.nodes().addOne(xs)
             val labels = xs.unsorted.tail.map(reduction.labels(_)).foldLeft(reduction.labels(xs.head))(_ intersect _)
             powering.addLabels(xs, labels)
-            val relations = reduction.successorRelations(xs.head)
+  //          val relations = reduction.successorRelations(xs.head)
+            val relations = xs.unsorted.tail.foldLeft(reduction.successorRelations(xs.head))(_ intersect reduction.successorRelations(_))
             relations.foreach(r => {
-              //            val hypergraph: collection.Set[collection.Set[Int]] = xs.unsorted.map(x => BitSet.fromSpecific(reduction.successorsForRelation(x, r)))
-              val hypergraph: collection.Set[collection.Set[Int]] = xs.unsorted.map(x => reduction.successorsForRelation(x, r))
-              HSdag.allMinimalHittingSets(hypergraph).foreach(mhs => {
-                val ys = BitSet.fromSpecific(mhs)
-                powering.addEdge(xs, r, ys)
-                next.addOne(ys)
-              })
+  //            val hypergraph: collection.Set[collection.Set[Int]] = xs.unsorted.map(x => BitSet.fromSpecific(reduction.successorsForRelation(x, r)))
+              val hypergraph: collection.Set[collection.BitSet] = xs.unsorted.map(x => reduction.successorsForRelation(x, r))
+              var hypergraphSize = 1l
+              val it = hypergraph.iterator
+              while (it.hasNext)
+                hypergraphSize *= it.next().size
+                if (hypergraphSize > 1048576)
+                  throw IllegalArgumentException("The hypergraph is too big: " + hypergraph.tail.foldLeft(hypergraph.head.size + "")(_ + " x " + _.size))
+              HSdagBits.allMinimalHittingSets(hypergraph)
+                .map(mhs => mhs.filter(x => mhs.forall(y => !simulation(y, x))))
+                .foreach(ys => {
+                  powering.addEdge(xs, r, ys)
+                  next.addOne(ys)
+                })
             })
           }
         }
@@ -61,8 +73,7 @@ class PoweringClosureOperator_CachedValues(val reduction: BitGraph[OWLClass, OWL
       }
 
       extendPowering(Set(xs))
-
-      //    val poweringSimulation = BitSetToIntRelation()
+  //    Util.writeExecutionTime({ extendPowering(Set(xs)) }, duration => println("Unfolding the powering took " + Util.formatTime(duration)))
 
       for (y <- reduction.nodes()) {
         val yLabels = reduction.labels(y)
@@ -117,13 +128,7 @@ class PoweringClosureOperator_CachedValues(val reduction: BitGraph[OWLClass, OWL
 
       powLoop()
 
-//      if (cacheValues) {
-        poweringSimulation.row(xs)
-//      } else {
-//        val ys = poweringSimulation.row(xs)
-//        poweringSimulation.clear()
-//        ys
-//      }
+      poweringSimulation.row(xs)
 
     }
 

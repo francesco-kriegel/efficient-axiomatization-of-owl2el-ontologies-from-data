@@ -21,6 +21,7 @@ import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
 import scala.jdk.CollectionConverters.*
 
+@Deprecated
 class PoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
 
   def apply(xs: collection.BitSet): collection.BitSet = {
@@ -56,7 +57,7 @@ class PoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLObjectPropert
 
     extendPowering(Set(xs))
 
-    val poweringSimulation = BitSetToIntRelation()
+    val poweringSimulation = BitSetToIntRelationThatExtendsInverseElementhood()
 
     for (y <- reduction.nodes()) {
       val yLabels = reduction.labels(y)
