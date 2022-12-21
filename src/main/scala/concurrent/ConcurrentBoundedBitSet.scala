@@ -1,8 +1,8 @@
 package de.tu_dresden.inf.lat
 package concurrent
-import scala.collection.mutable
 
 //* A bitset for elements that are integers between 0 and maxElem */
+@Deprecated
 class ConcurrentBoundedBitSet(maxElem: Int) {
 
   private val atomicArray = AtomicLongArray((maxElem >> 6) + 1)

@@ -93,10 +93,12 @@ object Interpretation {
 
   }
 
+  @Deprecated
   def maximalSimulationOn(graph: BitGraph[OWLClass, OWLObjectProperty])(using logger: Logger): BitBiMap = {
 
+    logger.reset()
     logger.println("Computing pre-simulation...")
-
+    val start1 = System.currentTimeMillis()
     //    val simulation = ConcurrentReflexiveRelation[OWLIndividual]()
     //    val simulation = ReflexiveBitRelation[OWLIndividual]()
     val simulation = BitBiMap()
@@ -117,13 +119,14 @@ object Interpretation {
       }
     }
     logger.reset()
+    println("Phase 1: " + Util.formatTime(System.currentTimeMillis() - start1))
 
     logger.println("Computing initial mapping R(x,r)...")
-
+    val start2 = System.currentTimeMillis()
     //     val R = new mutable.HashMap[(OWLIndividual, OWLObjectProperty), mutable.Set[OWLIndividual]]
     //    val bitR = new LongBitRelation[(OWLIndividual, OWLObjectProperty), OWLIndividual]
-    //val bitR = BitMap[(Int, OWLObjectProperty)]()
-    val bitR = ConcurrentBitMap[(Int, OWLObjectProperty)](graph.nodes().size - 1)
+    val bitR = BitMap[(Int, OWLObjectProperty)]()
+//    val bitR = ConcurrentBitMap[(Int, OWLObjectProperty)](graph.nodes().size - 1)
 
     for (x <- graph.nodes().par) {
       logger.tick()
@@ -135,57 +138,77 @@ object Interpretation {
             //            R.synchronized {
             //              R.getOrElseUpdate((x, property), { mutable.HashSet[OWLIndividual]() }).addOne(yy)
             //            }
-//            bitR.synchronized {
+            bitR.synchronized {
               bitR.add((x, property), yy)
-//            }
+            }
           }
         }
       }
     }
-
     logger.reset()
+    println("Phase 2: " + Util.formatTime(System.currentTimeMillis() - start2))
 
     logger.println("Computing simulation...")
-
-    @tailrec
-    def loop(): Unit = {
+    val start3 = System.currentTimeMillis()
+//    @tailrec def loop(): Unit = {
+//      ////      if (R.nonEmpty) {
+//      //      val opt = bitR.nonEmptyRow()
+//      //      if (opt.isDefined) {
+//      ////        val (x, r) = R.keySet.head
+//      //        val (x, r) = opt.get
+//      if (bitR.rows().nonEmpty) {
+//        logger.tick()
+//        val (x, r) = bitR.rows().head
+//        for (xx <- graph.predecessorsForRelation(x, r)) {
+//          ////          for (yy <- R(x, r)) {
+//          //          for (yy <- bitR.rowAsIterable((x, r)))
+//          //            if (simulation(xx, yy)) {
+//          //              simulation.remove(xx, yy)
+//          val row = simulation.row(xx)
+////          for (yy <- bitR.rowImmutable((x, r)) intersect row) {
+//          for (yy <- bitR.row((x, r)) intersect row) {
+//            row.remove(yy)
+//            simulation.col(yy).remove(xx)
+//            for ((rr, yyy) <- graph.predecessors(yy)) {
+//              //                if (!graph.successorsForRelation(yyy, rr).exists(simulation(xx, _))) {
+//              if (!graph.successorsForRelation(yyy, rr).contains(xx)
+//                && (row intersect graph.successorsForRelation(yyy, rr)).isEmpty) {
+//                //                  R.getOrElseUpdate((xx, rr), { mutable.HashSet[OWLIndividual]() }).addOne(yyy)
+//                bitR.add((xx, rr), yyy)
+//              }
+//            }
+//            //            }
+//          }
+//        }
+//        //        R.remove((x, r))
+//        bitR.clearRow((x, r))
+//        loop()
+//      }
+//    }
+//    loop()
+    while (bitR.rows().nonEmpty) {
       logger.tick()
-      ////      if (R.nonEmpty) {
-      //      val opt = bitR.nonEmptyRow()
-      //      if (opt.isDefined) {
-      ////        val (x, r) = R.keySet.head
-      //        val (x, r) = opt.get
-      if (bitR.rows().nonEmpty) {
-        val (x, r) = bitR.rows().head
-        for (xx <- graph.predecessorsForRelation(x, r)) {
-          ////          for (yy <- R(x, r)) {
-          //          for (yy <- bitR.rowAsIterable((x, r)))
-          //            if (simulation(xx, yy)) {
-          //              simulation.remove(xx, yy)
-          val row = simulation.row(xx)
-          for (yy <- bitR.row((x, r)) intersect row) {
-            row.remove(yy)
-            simulation.col(yy).remove(xx)
-            for ((rr, yyy) <- graph.predecessors(yy)) {
-              //                if (!graph.successorsForRelation(yyy, rr).exists(simulation(xx, _))) {
-              if (!graph.successorsForRelation(yyy, rr).contains(xx)
-                && (row intersect graph.successorsForRelation(yyy, rr)).isEmpty) {
-                //                  R.getOrElseUpdate((xx, rr), { mutable.HashSet[OWLIndividual]() }).addOne(yyy)
-                bitR.add((xx, rr), yyy)
-              }
+      val (x, r) = bitR.rows().head
+      //val bitRRow = bitR.row((x, r))
+      //bitR.clearRow((x, r))
+      val bitRRow = bitR.clearRow((x, r)).get
+      for (xx <- graph.predecessorsForRelation(x, r)) {
+        val simRow = simulation.row(xx)
+        for (yy <- bitRRow intersect simRow) {
+          simRow.remove(yy)
+          simulation.col(yy).remove(xx)
+          for ((rr, yyy) <- graph.predecessors(yy)) {
+            val successors = graph.successorsForRelation(yyy, rr)
+            if (!(successors contains xx) && (simRow intersect successors).isEmpty) {
+              bitR.add((xx, rr), yyy)
             }
-            //            }
           }
         }
-        //        R.remove((x, r))
-        bitR.clearRow((x, r))
-        loop()
       }
     }
 
-    loop()
     logger.reset()
-
+    println("Phase 3: " + Util.formatTime(System.currentTimeMillis() - start3))
     simulation
 
   }

@@ -27,17 +27,14 @@ class PoweringClosureOperator2(val graph: BitGraph[OWLClass, OWLObjectProperty],
                                val maxConjunctionSize: Option[Int] = None,
                                val throwExceptionWhenSomeConjunctionIsTooLarge: Boolean = false,
                                val maxRoleDepth: Option[Int] = None,
-//                               val cacheValues: Boolean = false
                               ) extends Function[collection.BitSet, collection.BitSet] {
 
   given logger: Logger = NoLogger()
   val simulation = if knownSimulation.isDefined then knownSimulation.get else Interpretation.maximalSimulationOn(graph)
-  // val poweringSimulation = BitSetToIntRelation()
-//  var poweringSimulation = BitSetToIntRelationThatExtendsInverseElementhood()
 
   private def isTooLarge(hypergraph: collection.Set[collection.BitSet], limit: Int): Boolean = {
     var tooLarge = false
-    var hypergraphSize = 1l
+    var hypergraphSize = 1L
     val it = hypergraph.iterator
     val whileLoop = new Breaks
     whileLoop.breakable {
@@ -54,13 +51,7 @@ class PoweringClosureOperator2(val graph: BitGraph[OWLClass, OWLObjectProperty],
 
     if (xs equals graph.nodes()) {
       graph.nodes()
-    }
-//    else if (cacheValues && poweringSimulation.rows.contains(xs)) {
-//      poweringSimulation.row(xs)
-//    }
-    else {
-
-      val poweringSimulation = BitSetToIntRelationThatExtendsInverseElementhood()
+    } else {
 
       val powering = HashGraph[collection.BitSet, OWLClass, OWLObjectProperty]()
 
@@ -72,8 +63,8 @@ class PoweringClosureOperator2(val graph: BitGraph[OWLClass, OWLObjectProperty],
         forLoop.breakable {
           for (xs <- current) {
             if (!powering.nodes().contains(xs)) {
-              if (!(xs subsetOf graph.nodes()))
-                throw new IllegalArgumentException()
+//              if (!(xs subsetOf graph.nodes()))
+//                throw new IllegalArgumentException()
               powering.nodes().addOne(xs)
               val labels = xs.unsorted.tail.map(graph.labels(_)).foldLeft(graph.labels(xs.head))(_ intersect _)
               powering.addLabels(xs, labels)
@@ -116,7 +107,7 @@ class PoweringClosureOperator2(val graph: BitGraph[OWLClass, OWLObjectProperty],
           graph.nodes()
       } else {
 
-        //      val poweringSimulation = BitSetToIntRelation()
+        val poweringSimulation = BitSetToIntRelationThatExtendsInverseElementhood()
 
         for (y <- graph.nodes()) {
           val yLabels = graph.labels(y)
@@ -158,7 +149,7 @@ class PoweringClosureOperator2(val graph: BitGraph[OWLClass, OWLObjectProperty],
             val (x, r) = powR.rows().head
             for (xx <- powering.predecessorsForRelation(x, r)) {
               // for (yy <- powR(x, r)) {
-              for (yy <- powR.row((x, r))) {
+              for (yy <- powR.rowImmutable((x, r))) {
                 if (!xx(yy) && poweringSimulation(xx, yy)) {
                   poweringSimulation.remove(xx, yy)
                   for ((rr, yyy) <- graph.predecessors(yy)) {
@@ -179,14 +170,7 @@ class PoweringClosureOperator2(val graph: BitGraph[OWLClass, OWLObjectProperty],
 
         powLoop()
 
-//        if (cacheValues) {
-          poweringSimulation.row(xs)
-//        } else {
-//          val result = poweringSimulation.row(xs)
-//          // poweringSimulation.clear()
-//          poweringSimulation = BitSetToIntRelationThatExtendsInverseElementhood()
-//          result
-//        }
+        poweringSimulation.row(xs)
 
       }
 

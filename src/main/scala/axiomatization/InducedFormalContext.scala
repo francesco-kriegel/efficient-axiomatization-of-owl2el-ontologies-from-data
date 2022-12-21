@@ -9,6 +9,7 @@ import org.semanticweb.owlapi.model.{OWLClass, OWLObjectProperty}
 import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import Util.intersectionOfBitSets
+import scala.collection.parallel.CollectionConverters._
 
 import scala.annotation.threadUnsafe
 
@@ -101,6 +102,11 @@ class InducedFormalContext(reduction: BitGraph[OWLClass, OWLObjectProperty],
   @threadUnsafe
   lazy val bitsActiveAttributes = BitSet.fromSpecific(0 until activeAttributes.length)
 
+//  def closure(bs: collection.BitSet): collection.BitSet = {
+//    val gs = bs.foldLeft(objects)(_ & occupiedIncidenceMatrix.col(_))
+//    gs.foldLeft(cxtAttributes)(_ & occupiedIncidenceMatrix.row(_))
+//  }
+
   def closure(bs: collection.BitSet): mutable.BitSet = {
     // val gs = intersectionOfBitSets(bs.iterator.map(b => occupiedIncidenceMatrix.col(b)), bs.size, objects)
     // intersectionOfBitSets(gs.iterator.map(g => occupiedIncidenceMatrix.row(g)), gs.size, bitsOccupiedAttributes)
@@ -108,17 +114,22 @@ class InducedFormalContext(reduction: BitGraph[OWLClass, OWLObjectProperty],
   }
 
   def commonObjects(bs: collection.BitSet): mutable.BitSet = {
-    intersectionOfBitSets(bs.iterator.map(b => activeIncidenceMatrix.col(b)), bs.size, objects)
+    // intersectionOfBitSets(bs.iterator.map(b => activeIncidenceMatrix.col(b)), bs.size, objects)
+    intersectionOfBitSets(bs.iterator.map(b => activeIncidenceMatrix.col(b)), objects)
+//    if (bs.isEmpty)
+//      objects
+//    else
+//      scala.collection.parallel.ParBitSet(bs).map(b => activeIncidenceMatrix.col(b)).reduce(_ & _)
   }
 
   def commonAttributes(gs: collection.BitSet): mutable.BitSet = {
-    intersectionOfBitSets(gs.iterator.map(g => activeIncidenceMatrix.row(g)), gs.size, bitsActiveAttributes)
+    // intersectionOfBitSets(gs.iterator.map(g => activeIncidenceMatrix.row(g)), gs.size, bitsActiveAttributes)
+    intersectionOfBitSets(gs.iterator.map(g => activeIncidenceMatrix.row(g)), bitsActiveAttributes)
+//    if (gs.isEmpty)
+//      mutable.BitSet.fromSpecific(bitsActiveAttributes)
+//    else
+//      scala.collection.parallel.ParBitSet(gs).map(g => activeIncidenceMatrix.row(g)).reduce(_ & _)
   }
-
-//  def closure(bs: collection.BitSet): collection.BitSet = {
-//    val gs = bs.foldLeft(objects)(_ & occupiedIncidenceMatrix.col(_))
-//    gs.foldLeft(cxtAttributes)(_ & occupiedIncidenceMatrix.row(_))
-//  }
 
   def toString(m: M): String = {
     m match

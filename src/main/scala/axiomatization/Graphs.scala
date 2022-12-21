@@ -251,7 +251,7 @@ class BitGraph[L, R](val initNodes: Int*) extends Graph[Int, L, R] {
     _successorsByRelation.getOrElseUpdate((source, relation), { mutable.BitSet() }).addOne(target)
     _predecessorsByRelation.getOrElseUpdate((target, relation), { mutable.BitSet() }).addOne(source)
     //    _successors.getOrElseUpdate(source, { mutable.HashSet[(R, Int)]() }).addOne(relation, target)
-    _predecessors.getOrElseUpdate(target, { mutable.HashSet[(R, Int)]() }).addOne(relation, source)
+    _predecessors.getOrElseUpdate(target, { mutable.HashSet[(R, Int)]() }).addOne((relation, source))
   }
 
   def clear(): Unit = {

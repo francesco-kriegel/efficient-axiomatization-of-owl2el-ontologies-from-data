@@ -31,6 +31,21 @@ object Util {
     }
   }
 
+//  implicit class LocalBitSet(bs: collection.BitSet) {
+//    def diffOrReportBug(other: collection.BitSet): collection.BitSet = {
+//      val diff = bs diff other
+//      val expected = collection.mutable.BitSet.fromSpecific(bs).subtractAll(other)
+//      if (diff equals expected)
+//        diff
+//      else
+//        println("BitSet 1: " + bs)
+//        println("BitSet 2: " + other)
+//        println("Computed Difference: " + diff)
+//        println("Expected Difference: " + expected)
+//        throw RuntimeException()
+//    }
+//  }
+
   implicit class LocalSet[A](set: collection.Set[A]) {
     def strictSubsetOf(other: collection.Set[A]): Boolean = {
       (set subsetOf other) && (set.size < other.size)
@@ -38,25 +53,32 @@ object Util {
   }
 
   // TODO: Compute in parallel
-  def intersectionOfBitSets(it: Iterator[mutable.BitSet], size: Int, domain: collection.BitSet): mutable.BitSet = {
+//  def intersectionOfBitSets(it: Iterator[mutable.BitSet], size: Int, domain: collection.BitSet): mutable.BitSet = {
+//    if (it.isEmpty)
+////      throw new IllegalArgumentException("Cannot compute empty intersection.")
+//      mutable.BitSet.fromSpecific(domain)
+//    else {
+//      val elems = new Array[Array[Long]](size)
+//      var i = 0
+//      it.foreach(set => {
+//        elems(i) = set.toBitMask
+//        i += 1
+//      })
+//      val nwords = elems.map(_.length).min
+//      val newElems = new Array[Long](nwords)
+//      (0 until nwords).par.foreach(i => {
+//        newElems(i) = elems(0)(i)
+//        (1 until elems.length).foreach(n => newElems(i) &= elems(n)(i))
+//      })
+//      new mutable.BitSet(newElems)
+//    }
+//  }
+
+  def intersectionOfBitSets(it: Iterator[mutable.BitSet], domain: collection.BitSet): mutable.BitSet = {
     if (it.isEmpty)
-//      throw new IllegalArgumentException("Cannot compute empty intersection.")
       mutable.BitSet.fromSpecific(domain)
-    else {
-      val elems = new Array[Array[Long]](size)
-      var i = 0
-      it.foreach(set => {
-        elems(i) = set.toBitMask
-        i += 1
-      })
-      val nwords = elems.map(_.length).min
-      val newElems = new Array[Long](nwords)
-      (0 until nwords).par.foreach(i => {
-        newElems(i) = elems(0)(i)
-        (1 until elems.length).foreach(n => newElems(i) &= elems(n)(i))
-      })
-      new mutable.BitSet(newElems)
-    }
+    else
+      it.reduceLeft(_ & _)
   }
 
   implicit class LocalMultiMap[A, B](map: collection.Map[A, collection.mutable.Set[B]] with collection.mutable.MultiMap[A, B]) {

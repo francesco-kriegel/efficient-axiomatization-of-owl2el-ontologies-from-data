@@ -453,38 +453,69 @@ object Axiomatization {
     // TODO: (3) existential restrictions in a conclusion
 
     val _additionalAttributes = mutable.HashSet[OWLClass | OWLObjectSomeValuesFrom]()
-    val f: PartialFunction[OWLClassExpression, OWLClass | OWLObjectSomeValuesFrom] = {
-      case c@Class(_) if !c.isOWLThing => c
-      case c@ObjectSomeValuesFrom(_, _) => c
-    }
+    val activeAttributesInContext = cxt.activeAttributes.toSet
+//    val f: PartialFunction[OWLClassExpression, OWLClass | OWLObjectSomeValuesFrom] = {
+////       case c@Class(_) if !c.isOWLThing && !activeAttributesInContext.contains(c) => c
+//      case c@Class(_) if !c.isOWLThing => c
+//      case c@ObjectSomeValuesFrom(_, _) => c
+//    }
+    val existentialRestrictionsInPremises = mutable.HashSet[OWLObjectSomeValuesFrom]()
     val existentialRestrictionsInConclusions = mutable.HashSet[OWLObjectSomeValuesFrom]()
-    val g: PartialFunction[OWLClassExpression, OWLObjectSomeValuesFrom] = {
-      case c@ObjectSomeValuesFrom(_, _) => c
+//    val g: PartialFunction[OWLClassExpression, OWLObjectSomeValuesFrom] = {
+//      case c@ObjectSomeValuesFrom(_, _) => c
+//    }
+    def processPremise(premise: OWLClassExpression): Unit = {
+      premise.conjunctSet().toScala(LazyList).foreach({
+        case c@Class(_) if !c.isOWLThing && !activeAttributesInContext.contains(c) =>
+          _additionalAttributes.addOne(c)
+        case c@ObjectSomeValuesFrom(_, _) =>
+          _additionalAttributes.addOne(c)
+          existentialRestrictionsInPremises.addOne(c)
+        case _ => {}
+      })
+    }
+    def processConclusion(conclusion: OWLClassExpression): Unit = {
+      conclusion.conjunctSet().toScala(LazyList).foreach({
+        case c@Class(_) if !c.isOWLThing && !activeAttributesInContext.contains(c) =>
+          _additionalAttributes.addOne(c)
+        case c@ObjectSomeValuesFrom(_, _) =>
+          _additionalAttributes.addOne(c)
+          existentialRestrictionsInConclusions.addOne(c)
+        case _ => {}
+      })
     }
     elTBox.foreach({
       case SubClassOf(_, premise, conclusion) => {
-        _additionalAttributes.addAll(premise.conjunctSet().toScala(LazyList).collect(f))
-        _additionalAttributes.addAll(conclusion.conjunctSet().toScala(LazyList).collect(f))
-        existentialRestrictionsInConclusions.addAll(conclusion.conjunctSet().toScala(LazyList).collect(g))
+//        _additionalAttributes.addAll(premise.conjunctSet().toScala(LazyList).collect(f))
+//        _additionalAttributes.addAll(conclusion.conjunctSet().toScala(LazyList).collect(f))
+//        existentialRestrictionsInConclusions.addAll(conclusion.conjunctSet().toScala(LazyList).collect(g))
+        processPremise(premise)
+        processConclusion(conclusion)
       }
       case ObjectPropertyDomain(_, property@ObjectProperty(_), conclusion) => {
-        _additionalAttributes.add(ObjectSomeValuesFrom(property, OWLThing))
-        _additionalAttributes.addAll(conclusion.conjunctSet().toScala(LazyList).collect(f))
-        existentialRestrictionsInConclusions.addAll(conclusion.conjunctSet().toScala(LazyList).collect(g))
+//        _additionalAttributes.add(ObjectSomeValuesFrom(property, OWLThing))
+//        _additionalAttributes.addAll(conclusion.conjunctSet().toScala(LazyList).collect(f))
+//        existentialRestrictionsInConclusions.addAll(conclusion.conjunctSet().toScala(LazyList).collect(g))
+        processPremise(ObjectSomeValuesFrom(property, OWLThing))
+        processConclusion(conclusion)
       }
       case EquivalentClasses(_, operands) => {
         operands.foreach(op => {
-          _additionalAttributes.addAll(op.conjunctSet().toScala(LazyList).collect(f))
-          existentialRestrictionsInConclusions.addAll(op.conjunctSet().toScala(LazyList).collect(g))
+//          _additionalAttributes.addAll(op.conjunctSet().toScala(LazyList).collect(f))
+//          existentialRestrictionsInConclusions.addAll(op.conjunctSet().toScala(LazyList).collect(g))
+          processPremise(op)
+          processConclusion(op)
         })
       }
     })
 
     // TODO: build the TBox saturation only from the fillers in conclusions
-    elk.insertIntoCanonicalModel(_additionalAttributes.collect({
-//    elk.insertIntoCanonicalModel(existentialRestrictionsInConclusions.collect({
-      case ObjectSomeValuesFrom(_, filler) => filler
-    }))
+//    elk.insertIntoCanonicalModel(_additionalAttributes.collect({
+////    elk.insertIntoCanonicalModel(existentialRestrictionsInConclusions.collect({
+//      case ObjectSomeValuesFrom(_, filler) => filler
+//    }))
+    val fillersInConclusions = existentialRestrictionsInConclusions.map({ case ObjectSomeValuesFrom(_, filler) => filler })
+    elk.insertIntoCanonicalModel(fillersInConclusions)
 
     val (reducedCanonicalModel2, _rcmRepresentedBy2, _rcmRepresentativeOf2, _) = Interpretation.reductionOf(elk.canonicalModel)
 
@@ -529,25 +560,34 @@ object Axiomatization {
         insertIntoTBoxSaturation(next)
     }
 
-    insertIntoTBoxSaturation(reducedCanonicalModel2.nodes().filter(rcmRepresentsClassExpression2))
+//    insertIntoTBoxSaturation(reducedCanonicalModel2.nodes().filter(rcmRepresentsClassExpression2))
+    insertIntoTBoxSaturation(fillersInConclusions.map(rcmRepresentativeOf2))
 
 //    val clop = PoweringClosureOperator(tboxSaturation)
 //    val clop = PoweringClosureOperator_Incremental(tboxSaturation)
 //    val clop = PoweringClosureOperator2_CachedValues(tboxSaturation)
-    val poweringSimulator = PoweringSimulator2(reducedCanonicalModel, Some(simulationOnRCM), maxRoleDepth.map(_ - 1), tboxSaturation, true)
+    val poweringSimulator = PoweringSimulator2(reducedCanonicalModel, Some(simulationOnRCM), maxRoleDepth.map(_ - 1), tboxSaturation)
 
-    def simulates(succ: collection.BitSet | OWLClassExpression, filler: OWLClassExpression): Boolean = {
-      succ match
-        case succ: collection.BitSet =>
-          succ.forall(i => {
+    logger.println("Building powering simulator cache...")
+    val cachedPoweringSimulator = collection.concurrent.TrieMap[collection.BitSet, collection.BitSet]()
+    closureToGeneratorMap.par.foreach((closure, generator) => {
+      cachedPoweringSimulator(closure) = poweringSimulator(generator)
+      logger.tick()
+    })
+    logger.reset()
+
+    def simulates(node1: collection.BitSet | OWLClassExpression, node2: OWLClassExpression): Boolean = {
+      node1 match
+        case node1: collection.BitSet =>
+          node1.forall(i => {
             rcmRepresentedBy(i).head match
               case j: Int =>
-                elk.types(elk.individualFor(j)).contains(elk.representativeOf(filler))
+                elk.types(elk.individualFor(j)) contains elk.representativeOf(node2)
               case c: OWLClassExpression =>
-                elk.subsumers(elk.representativeOf(c)).contains(elk.representativeOf(filler))
+                elk.subsumers(elk.representativeOf(c)) contains elk.representativeOf(node2)
           })
-        case succ: OWLClassExpression =>
-          elk.subsumers(elk.representativeOf(succ)).contains(elk.representativeOf(filler))
+        case node1: OWLClassExpression =>
+          elk.subsumers(elk.representativeOf(node1)) contains elk.representativeOf(node2)
     }
 
     // optimized version of dlClosure:
@@ -573,73 +613,38 @@ object Axiomatization {
     if (withDisjointnessAxioms)
       _backgroundImplications.add(BitSet(0) -> BitSet.fromSpecific(1 until extendedAttributeSet.length))
       logger.tick()
-    //    backgroundImplications.addOne((BitSet(0), BitSet.fromSpecific(1 until cxt.occupiedAttributes.length)))
-    //    (1 until extendedAttributeSet.length).foreach(i => {
-    //      backgroundImplications.addOne((BitSet(0), BitSet(i)))
-    //    })
 
     extendedAttributeSet.par.foreach({
-//      case pair1 @ (property1: OWLObjectProperty, mmsc1: collection.BitSet) => {
       case pair1 @ ObjectSomeValuesFromMMSC(property1, mmsc1) => {
-//        extendedAttributeSet.foreach({
-//          case pair2 @ (property2: OWLObjectProperty, mmsc2: collection.BitSet) if property1 equals property2 => {
-//            // (4)  {(r,X)} → {(r,Y)}  if  X⊆Y
-//            // use iPred
-//            if (mmsc1 subsetOf mmsc2)
-//              backgroundImplications.addOne((BitSet(extendedAttributeIndex(pair1)), BitSet(extendedAttributeIndex(pair2))))
-//          }
-//          case exr2 @ ObjectSomeValuesFrom(property2 @ ObjectProperty(_), filler2) if property1 equals property2 => {
-//            // (1)  {(r,X)} → {∃r.C}   if  simulates(X, C) == true
-//            if (simulates(mmsc1, filler2))
-//              backgroundImplications.addOne((BitSet(extendedAttributeIndex(pair1)), BitSet(extendedAttributeIndex(exr2))))
-//          }
-//          case _ => {}
-//        })
         val cs = extendedAttributeSet.collect({
           // (4)  {(r,X)} → {(r,Y)}  if  X⊆Y
-          // use iPred
-//          case pair2 @ (property2: OWLObjectProperty, mmsc2: collection.BitSet)
           case pair2 @ ObjectSomeValuesFromMMSC(property2, mmsc2)
-            if (property1 equals property2) && (mmsc1 subsetOf mmsc2) => extendedAttributeIndex(pair2)
+            if (property1 equals property2)
+              && (mmsc1 subsetOf mmsc2) => extendedAttributeIndex(pair2)
 
-          // TODO: It suffices to consider the existential restrictions ∃r.C in premises
           // (1)  {(r,X)} → {∃r.C}   if  simulates(X, C) == true
           case exr2 @ ObjectSomeValuesFrom(property2 @ ObjectProperty(_), filler2)
-            if (property1 equals property2) && (simulates(mmsc1, filler2)) => extendedAttributeIndex(exr2)
+            if (property1 equals property2)
+              && (existentialRestrictionsInPremises contains exr2)
+              && simulates(mmsc1, filler2) => extendedAttributeIndex(exr2)
         })
         if (cs.nonEmpty)
           _backgroundImplications.add(BitSet(extendedAttributeIndex(pair1)) -> BitSet.fromSpecific(cs))
           logger.tick()
       }
-      case exr1 @ ObjectSomeValuesFrom(property1 @ ObjectProperty(_), filler1) => {
-//        extendedAttributeSet.foreach({
-//          case pair2 @ (property2: OWLObjectProperty, mmsc2: collection.BitSet) if property1 equals property2 => {
-//            // (5)   {∃r.C} → {(r,X)}  if  C simulates X, i.e., there is a simulation from (𝔓(𝓘),X) to (𝓘_𝓣,C)
-//            if (clop(mmsc2) contains rcmRepresentativeOf2(filler1))
-//              backgroundImplications.addOne((BitSet(extendedAttributeIndex(exr1)), BitSet(extendedAttributeIndex(pair2))))
-//          }
-//          case exr2 @ ObjectSomeValuesFrom(property2 @ ObjectProperty(_), filler2) if property1 equals property2 => {
-//            // (2)   {∃r.C} → {∃r.D}   if  simulates(C, D) == true
-//            if (simulates(filler1, filler2))
-//              backgroundImplications.addOne((BitSet(extendedAttributeIndex(exr1)), BitSet(extendedAttributeIndex(exr2))))
-//          }
-//          case _ => {}
-//        })
+      case exr1 @ ObjectSomeValuesFrom(property1 @ ObjectProperty(_), filler1) if existentialRestrictionsInConclusions contains exr1 => {
         val cs = extendedAttributeSet.collect({
-          // TODO: It suffices to consider the existential restrictions ∃r.C in conclusions
-          // TODO: Pre-compute or cache the values clop(mmsc2)
           // (5)   {∃r.C} → {(r,X)}  if  C simulates X, i.e., there is a simulation from (𝔓(𝓘),X) to (𝓘_𝓣,C)
-//          case pair2 @ (property2: OWLObjectProperty, mmsc2: collection.BitSet)
           case pair2 @ ObjectSomeValuesFromMMSC(property2, mmsc2)
-            if (property1 equals property2) && (poweringSimulator(closureToGeneratorMap(mmsc2)) contains rcmRepresentativeOf2(filler1)) => extendedAttributeIndex(pair2)
-//            if (property1 equals property2)
-//              && (existentialRestrictionsInConclusions contains exr1)
-//              && (clop(mmsc2) contains rcmRepresentativeOf2(filler1)) => extendedAttributeIndex(pair2)
+            if (property1 equals property2)
+              // && (poweringSimulator(closureToGeneratorMap(mmsc2)) contains rcmRepresentativeOf2(filler1)) => extendedAttributeIndex(pair2)
+              && (cachedPoweringSimulator(mmsc2) contains rcmRepresentativeOf2(filler1)) => extendedAttributeIndex(pair2)
 
-          // TODO: It suffices to consider the existential restrictions ∃r.C in conclusions and ∃r.D in premises
           // (2)   {∃r.C} → {∃r.D}   if  simulates(C, D) == true
           case exr2 @ ObjectSomeValuesFrom(property2 @ ObjectProperty(_), filler2)
-            if (property1 equals property2) && (simulates(filler1, filler2)) => extendedAttributeIndex(exr2)
+            if (property1 equals property2)
+              && (existentialRestrictionsInPremises contains exr2)
+              && simulates(filler1, filler2) => extendedAttributeIndex(exr2)
         })
         if (cs.nonEmpty)
           _backgroundImplications.add(BitSet(extendedAttributeIndex(exr1)) -> BitSet.fromSpecific(cs))

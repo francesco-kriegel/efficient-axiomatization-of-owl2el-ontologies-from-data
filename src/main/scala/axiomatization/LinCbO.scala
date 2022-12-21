@@ -170,7 +170,7 @@ object LinCbOWithBackgroundImplications {
     def addPseudoIntent(_ant: mutable.BitSet, _cons: mutable.BitSet): Unit = {
       val ant = _ant intersect cxt.bitsActiveAttributes
       val cons = _cons intersect cxt.bitsActiveAttributes
-      val imp = (ant, cons)
+      val imp = ant -> cons
       val index = allImplications.length
       allImplications.addOne(imp)
       canonicalBase.addOne(imp)
@@ -192,7 +192,8 @@ object LinCbOWithBackgroundImplications {
           if (inclusionIdeal(closure)) {
             val diff = closure diff psClosure
             if (diff.nonEmpty) {
-              addPseudoIntent(psClosure, closure)
+              // addPseudoIntent(psClosure, closure)
+              addPseudoIntent(psClosure, diff)
               if (diff.min > y) {
                 Step(closure, y, diff, count)
               }

@@ -1,6 +1,8 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
+import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
+
 trait Logger {
   @inline def print(obj: Any): Unit
   @inline def println(obj: Any): Unit
@@ -23,16 +25,37 @@ final class ConsoleLogger() extends Logger {
   override def errPrintln(obj: Any): Unit = Console.err.println(obj)
   override def errPrintln(): Unit = Console.err.println()
 
-  var n = 0
+  private val n = AtomicInteger(0)
+  private val start = AtomicLong(0L)
+  private val time = AtomicLong(0L)
+  private val cRate = AtomicInteger(0)
+  private val tRate = AtomicInteger(0)
 
-  def tick(): Unit = {
-    n += 1
-    print("\r" + n)
+  override def tick(): Unit = {
+    //print("\r" + n.incrementAndGet())
+    val i = n.incrementAndGet()
+    if (i % 1000 == 0) {
+      val current = System.currentTimeMillis()
+      val last = time.getAndSet(current)
+      val j = (1000000 / (current - last)).toInt
+      val k = ((1000 * i) / (current - start.get())).toInt
+      cRate.set(j)
+      tRate.set(k)
+      print(s"\r$i (current: $j/s, total: $k/s)        ")
+    } else {
+      val j = cRate.get()
+      val k = tRate.get()
+      print(s"\r$i (current: $j/s, total: $k/s)        ")
+    }
   }
 
-  def reset(): Unit = {
+  override def reset(): Unit = {
     println()
-    n = 0
+    n.set(0)
+    start.set(System.currentTimeMillis())
+    time.set(System.currentTimeMillis())
+    cRate.set(0)
+    tRate.set(0)
   }
 }
 
