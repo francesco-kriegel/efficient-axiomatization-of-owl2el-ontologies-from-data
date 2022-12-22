@@ -54,13 +54,21 @@ object ParSimTest {
 //    val parSim6 = maximalSimulationOn6(graph)
 //    println(Util.formatTime(System.currentTimeMillis() - start6))
 
-    val start7 = System.currentTimeMillis()
-    val parSim7 = maximalSimulationOn7(graph)
-    println(Util.formatTime(System.currentTimeMillis() - start7))
+//    val start7 = System.currentTimeMillis()
+//    val parSim7 = maximalSimulationOn7(graph)
+//    println(Util.formatTime(System.currentTimeMillis() - start7))
 
-    val start8 = System.currentTimeMillis()
-    val parSim8 = maximalSimulationOn8(graph)
-    println(Util.formatTime(System.currentTimeMillis() - start8))
+//    val start8 = System.currentTimeMillis()
+//    val parSim8 = maximalSimulationOn8(graph)
+//    println(Util.formatTime(System.currentTimeMillis() - start8))
+//
+//    val start9 = System.currentTimeMillis()
+//    val parSim9 = maximalSimulationOn9(graph)
+//    println(Util.formatTime(System.currentTimeMillis() - start9))
+
+    val startS1 = System.currentTimeMillis()
+    val parSimS1 = computeMaximalSimulation(graph, graph)
+    println(Util.formatTime(System.currentTimeMillis() - startS1))
 
 //    val equal2 = graph.nodes().foldLeft(true)((res, node) => res & (seqSim.row(node) equals parSim2.rowImmutable(node)))
 //    println(equal2)
@@ -76,13 +84,12 @@ object ParSimTest {
 //    println("Defects(1,7): " + defects7)
 //    val defects8 = graph.nodes().foldLeft(0)((res, node) => res + (if seqSim.row(node) equals parSim8.row(node).viewAsImmutableBitSet then 0 else 1))
 //    println("Defects(1,8): " + defects8)
-    val defects78 = graph.nodes().foldLeft(0)((res, node) => res + (if parSim7.row(node).viewAsImmutableBitSet equals parSim8.row(node).viewAsImmutableBitSet then 0 else 1))
-    println("Defects(7,8): " + defects78)
-
-    val size7 = graph.nodes().foldLeft(0)((res, node) => res + parSim7.row(node).viewAsImmutableBitSet.size + 1)
-    val size8 = graph.nodes().foldLeft(0)((res, node) => res + parSim8.row(node).viewAsImmutableBitSet.size + 1)
-    println("Size(7): " + size7)
-    println("Size(8): " + size8)
+//    val defects78 = graph.nodes().foldLeft(0)((res, node) => res + (if parSim7.row(node).viewAsImmutableBitSet equals parSim8.row(node).viewAsImmutableBitSet then 0 else 1))
+//    println("Defects(7,8): " + defects78)
+//    val defects89 = graph.nodes().foldLeft(0)((res, node) => res + (if parSim8.row(node).viewAsImmutableBitSet equals parSim9.row(node).viewAsImmutableBitSet then 0 else 1))
+//    println("Defects(8,9): " + defects89)
+//    val defects9S1 = graph.nodes().foldLeft(0)((res, node) => res + (if parSim9.row(node).viewAsImmutableBitSet equals parSimS1.row(node).viewAsImmutableBitSet then 0 else 1))
+//    println("Defects(9,S1): " + defects9S1)
 
     ParallelComputation.shutdownThreadPool()
 
@@ -824,24 +831,26 @@ object ParSimTest {
       R.getOrElseUpdate(x, ConcurrentBitMap[OWLObjectProperty](graph.nodes().size - 1)).add(r, y)
     }
 
-    val predecessors = collection.mutable.HashMap[Int, collection.mutable.HashMap[OWLObjectProperty, collection.mutable.BitSet]]()
-    for (x <- graph.nodes()) {
+    //val predecessors = collection.mutable.HashMap[Int, collection.mutable.HashMap[OWLObjectProperty, collection.mutable.BitSet]]()
+    //for (x <- graph.nodes()) {
+    val predecessors = new scala.Array[collection.mutable.HashMap[OWLObjectProperty, collection.mutable.BitSet]](graph.nodes().size)
+    graph.nodes().foreachPar(x => {
       predecessors(x) = collection.mutable.HashMap[OWLObjectProperty, collection.mutable.BitSet]()
       for ((r, y) <- graph.predecessors(x)) {
         predecessors(x).getOrElseUpdate(r, collection.mutable.BitSet()).addOne(y)
       }
-    }
+    })
 
     graph.nodes().foreachPar(x => {
       logger.tick()
-//      for (yy <- graph.nodes()) {
-//        for (property <- graph.successorRelations(yy)) {
-//          val successors = graph.successorsForRelation(yy, property)
-//          if (!successors.contains(x) && (simulation.row(x).viewAsImmutableBitSet intersect successors).isEmpty) {
-//            addToR(x, property, yy)
-//          }
-//        }
-//      }
+      //      for (yy <- graph.nodes()) {
+      //        for (property <- graph.successorRelations(yy)) {
+      //          val successors = graph.successorsForRelation(yy, property)
+      //          if (!successors.contains(x) && (simulation.row(x).viewAsImmutableBitSet intersect successors).isEmpty) {
+      //            addToR(x, property, yy)
+      //          }
+      //        }
+      //      }
       R(x) = ConcurrentBitMap[OWLObjectProperty](graph.nodes().size - 1)
       for (r <- predecessors(x).keySet) {
         R(x).rowMap.getOrElseUpdate(r, concurrent.ConcurrentBoundedBitSet2(graph.nodes().toBitMask))
@@ -903,9 +912,22 @@ object ParSimTest {
         //remainingNodes &~= nodesThatHaveACommonPredecessorWith(x)
         parallelism += 1
         futures.add(scala.concurrent.Future {
+          //          The code in Phase 2:
+          //          R(x) = ConcurrentBitMap[OWLObjectProperty](graph.nodes().size - 1)
+          //          for (r <- predecessors(x).keySet) {
+          //            R(x).rowMap.getOrElseUpdate(r, concurrent.ConcurrentBoundedBitSet2(graph.nodes().toBitMask))
+          //              .viewAsMutableBitSet.subtractAll(predecessors(x)(r))
+          //          }
+          //          for (y <- simulation.row(x).viewAsImmutableBitSet) {
+          //            for (r <- predecessors(y).keySet) {
+          //              R(x).rowMap.getOrElseUpdate(r, concurrent.ConcurrentBoundedBitSet2(graph.nodes().toBitMask))
+          //                .viewAsMutableBitSet.subtractAll(predecessors(y)(r))
+          //            }
+          //          }
           val Rx = R.remove(x).get
           Rx.rows().foreach({ r =>
             logger.tick()
+            // TODO: Use Java's Fork/Join Framework
             graph.predecessorsForRelation(x, r).foreach { xx =>
               val simRow = simulation.row(xx)
               val simRowView = simRow.viewAsImmutableBitSet
@@ -954,6 +976,354 @@ object ParSimTest {
         }
       })
     }
+
+    logger.reset()
+    println("Phase 3: " + Util.formatTime(System.currentTimeMillis() - start3))
+
+    simulation
+
+  }
+
+  /**
+   * @param graph
+   * @param logger
+   * @return
+   * It is assumed that the nodes in the graph are consecutive numbers starting with 0
+   */
+  def maximalSimulationOn9(graph: BitGraph[OWLClass, OWLObjectProperty])(using logger: Logger): ConcurrentArrayBitBiMap = {
+
+    logger.reset()
+    logger.println("Computing pre-simulation...")
+    val start1 = System.currentTimeMillis()
+    val simulation = ConcurrentArrayBitBiMap(graph.nodes().size, graph.nodes().size)
+    graph.nodes().foreachPar(y => {
+      logger.tick()
+      val yLabels = graph.labels(y)
+      val yProperties = graph.successorRelations(y)
+      for (x <- graph.nodes()) {
+        if ((x equals y) || ((graph.labels(x) subsetOf yLabels) && (graph.successorRelations(x) subsetOf yProperties))) {
+          simulation.add(x, y)
+        }
+      }
+    })
+    logger.reset()
+    println("Phase 1: " + Util.formatTime(System.currentTimeMillis() - start1))
+
+    logger.println("Computing initial mapping R(x,r)...")
+    val start2 = System.currentTimeMillis()
+    val R = java.util.concurrent.ConcurrentHashMap[Int, ConcurrentBitMap[OWLObjectProperty]]().asScala
+
+    def addToR(x: Int, r: OWLObjectProperty, y: Int): Unit = {
+      R.getOrElseUpdate(x, ConcurrentBitMap[OWLObjectProperty](graph.nodes().size - 1)).add(r, y)
+    }
+
+    //val predecessors = collection.mutable.HashMap[Int, collection.mutable.HashMap[OWLObjectProperty, collection.mutable.BitSet]]()
+    //for (x <- graph.nodes()) {
+    val predecessors = new scala.Array[collection.mutable.HashMap[OWLObjectProperty, collection.mutable.BitSet]](graph.nodes().size)
+    graph.nodes().foreachPar(x => {
+      predecessors(x) = collection.mutable.HashMap[OWLObjectProperty, collection.mutable.BitSet]()
+      for ((r, y) <- graph.predecessors(x)) {
+        predecessors(x).getOrElseUpdate(r, collection.mutable.BitSet()).addOne(y)
+      }
+    })
+
+    graph.nodes().foreachPar(x => {
+      logger.tick()
+      //      for (yy <- graph.nodes()) {
+      //        for (property <- graph.successorRelations(yy)) {
+      //          val successors = graph.successorsForRelation(yy, property)
+      //          if (!successors.contains(x) && (simulation.row(x).viewAsImmutableBitSet intersect successors).isEmpty) {
+      //            addToR(x, property, yy)
+      //          }
+      //        }
+      //      }
+      R(x) = ConcurrentBitMap[OWLObjectProperty](graph.nodes().size - 1)
+//      for (r <- predecessors(x).keySet) {
+//        R(x).rowMap.getOrElseUpdate(r, concurrent.ConcurrentBoundedBitSet2(graph.nodes().toBitMask))
+//          .viewAsMutableBitSet.subtractAll(predecessors(x)(r))
+//      }
+      for (y <- simulation.row(x).viewAsImmutableBitSet) {
+        for (r <- predecessors(y).keySet) {
+          R(x).rowMap.getOrElseUpdate(r, concurrent.ConcurrentBoundedBitSet2(graph.nodes().toBitMask))
+            .viewAsMutableBitSet.subtractAll(predecessors(y)(r))
+        }
+      }
+    })
+    logger.reset()
+    println("Phase 2: " + Util.formatTime(System.currentTimeMillis() - start2))
+
+    logger.println("Computing simulation...")
+    val start3 = System.currentTimeMillis()
+    val nodesThatHaveACommonPredecessorWith = new java.util.concurrent.ConcurrentHashMap[Int, collection.BitSet]().asScala
+    graph.nodes().foreachPar(node => {
+      val predecessors = collection.mutable.BitSet()
+      graph.predecessors(node).foreach({ (_, pred) => predecessors.add(pred) })
+      nodesThatHaveACommonPredecessorWith(node) =
+        predecessors.flatMap(pred => graph.successorRelations(pred).flatMap(rel => graph.successorsForRelation(pred, rel)))
+    })
+    //logger.println("Common predecessor relation: " + Util.formatTime(System.currentTimeMillis() - start3))
+    var continueMultiThreaded = true
+    while (continueMultiThreaded && R.keySet.nonEmpty) {
+
+      val futures = java.util.concurrent.ConcurrentLinkedQueue[scala.concurrent.Future[_]]()
+      //val remainingNodes = collection.mutable.HashSet.from(R.keySet.iterator.take(4 * Runtime.getRuntime.availableProcessors()))
+      //      val startA = System.currentTimeMillis()
+      val remainingNodes = collection.mutable.HashSet.from(R.keySet)
+      //      logger.println("HashSet.from: " + Util.formatTime(System.currentTimeMillis() - startA))
+      //      val startB = System.currentTimeMillis()
+      //      val _remainingNodes = {
+      //        val len = ((graph.nodes().size - 1) >> 6) + 1
+      //        val bitMask = new scala.Array[Long](len)
+      //        (0 until len).foreachPar(idx => {
+      //          val min = idx << 6
+      //          val max = (idx + 1) << 6
+      //          var mask = 0L
+      //          (min to max).foreach(elem => {
+      //            if (R.keySet contains elem) {
+      //              mask |= 1L << elem
+      //            }
+      //          })
+      //          bitMask(idx) = mask
+      //        })
+      //        collection.mutable.BitSet.fromBitMask(bitMask)
+      //      }
+      //      logger.println("BitSet.fromBitMask: " + Util.formatTime(System.currentTimeMillis() - startB))
+      //val remainingNodes = collection.mutable.BitSet.fromSpecific(R.keySet)
+      var parallelism = 0
+
+      while (remainingNodes.nonEmpty) {
+        val x = remainingNodes.head
+        remainingNodes -= x
+        remainingNodes --= nodesThatHaveACommonPredecessorWith(x)
+        //remainingNodes &~= nodesThatHaveACommonPredecessorWith(x)
+        parallelism += 1
+        futures.add(scala.concurrent.Future {
+          //          The code in Phase 2:
+          //          R(x) = ConcurrentBitMap[OWLObjectProperty](graph.nodes().size - 1)
+          //          for (y <- simulation.row(x).viewAsImmutableBitSet) {
+          //            for (r <- predecessors(y).keySet) {
+          //              R(x).rowMap.getOrElseUpdate(r, concurrent.ConcurrentBoundedBitSet2(graph.nodes().toBitMask))
+          //                .viewAsMutableBitSet.subtractAll(predecessors(y)(r))
+          //            }
+          //          }
+          val Rx = R.remove(x).get
+          Rx.rows().foreach({ r =>
+            logger.tick()
+            // TODO: Use Java's Fork/Join Framework
+            graph.predecessorsForRelation(x, r).foreach { xx =>
+              val simRow = simulation.row(xx)
+              val simRowView = simRow.viewAsImmutableBitSet
+              (Rx.rowImmutable(r) intersect simRowView).foreach { yy =>
+                simRow.remove(yy)
+                simulation.col(yy).remove(xx)
+                graph.predecessors(yy).foreach { (rr, yyy) =>
+                  val successors = graph.successorsForRelation(yyy, rr)
+                  if ((simRowView intersect successors).isEmpty) {
+                    addToR(xx, rr, yyy)
+                  }
+                }
+              }
+            }
+          })
+        })
+      }
+
+      futures.asScala.awaitEach()
+
+      continueMultiThreaded = parallelism > 2
+
+    }
+
+    logger.println()
+    logger.println("Now continuing single-threaded...")
+
+    while (R.keySet.nonEmpty) {
+      val x = R.keySet.head
+      // TODO: Define a method for the following code as it is a duplicate of the above code in the Future.
+      val Rx = R.remove(x).get
+      Rx.rows().foreach({ r =>
+        logger.tick()
+        for (xx <- graph.predecessorsForRelation(x, r)) {
+          val simRow = simulation.row(xx)
+          val simRowView = simRow.viewAsImmutableBitSet
+          for (yy <- Rx.rowImmutable(r) intersect simRowView) {
+            simRow.remove(yy)
+            simulation.col(yy).remove(xx)
+            for ((rr, yyy) <- graph.predecessors(yy)) {
+              val successors = graph.successorsForRelation(yyy, rr)
+              if ((simRowView intersect successors).isEmpty) {
+                addToR(xx, rr, yyy)
+              }
+            }
+          }
+        }
+      })
+    }
+
+    logger.reset()
+    println("Phase 3: " + Util.formatTime(System.currentTimeMillis() - start3))
+
+    simulation
+
+  }
+
+  /**
+   * This method computes the largest simulation from the source graph to the target graph.  More specifically, by
+   * "simulation" we mean a forwardly-directed simulation, which describe the semantics of the description logic 𝓔𝓛 and
+   * of its extension with simulation quantifiers or, respectively, greatest fixed-point semantics.  It is assumed that
+   * the nodes in both graphs are consecutive numbers starting with 0.
+   * @param source the source graph
+   * @param target the target graph
+   * @param logger a logger that is used to process status messages during the computation
+   * @return the largest simulation from the source to the target
+   */
+  def computeMaximalSimulation[L, R](source: BitGraph[L, R], target: BitGraph[L, R])(using logger: Logger): ConcurrentArrayBitBiMap = {
+
+    logger.reset()
+    logger.println("Computing pre-simulation...")
+    val start1 = System.currentTimeMillis()
+    val simulation = ConcurrentArrayBitBiMap(source.nodes().size, target.nodes().size)
+    target.nodes().foreachPar(y => {
+      logger.tick()
+      val yLabels = target.labels(y)
+      val yProperties = target.successorRelations(y)
+      for (x <- source.nodes()) {
+        if ((source.labels(x) subsetOf yLabels) && (source.successorRelations(x) subsetOf yProperties)) {
+          simulation.add(x, y)
+        }
+      }
+    })
+    logger.reset()
+    println("Phase 1: " + Util.formatTime(System.currentTimeMillis() - start1))
+
+    logger.println("Computing initial mapping R(x,r)...")
+    val start2 = System.currentTimeMillis()
+    val R = java.util.concurrent.ConcurrentHashMap[Int, ConcurrentBitMap[R]]().asScala
+
+    def addToR(x: Int, r: R, y: Int): Unit = {
+      R.getOrElseUpdate(x, ConcurrentBitMap[R](target.nodes().size - 1)).add(r, y)
+    }
+
+    val predecessors = new scala.Array[collection.mutable.HashMap[R, collection.mutable.BitSet]](target.nodes().size)
+    target.nodes().foreachPar(x => {
+      predecessors(x) = collection.mutable.HashMap[R, collection.mutable.BitSet]()
+      for ((r, y) <- target.predecessors(x)) {
+        predecessors(x).getOrElseUpdate(r, collection.mutable.BitSet()).addOne(y)
+      }
+    })
+
+    source.nodes().foreachPar(x => {
+      logger.tick()
+      R(x) = ConcurrentBitMap[R](target.nodes().size - 1)
+      for (y <- simulation.row(x).viewAsImmutableBitSet) {
+        for (r <- predecessors(y).keySet) {
+          R(x).rowMap.getOrElseUpdate(r, concurrent.ConcurrentBoundedBitSet2(target.nodes().toBitMask))
+            .viewAsMutableBitSet.subtractAll(predecessors(y)(r))
+        }
+      }
+    })
+    logger.reset()
+    println("Phase 2: " + Util.formatTime(System.currentTimeMillis() - start2))
+
+    logger.println("Computing simulation...")
+    val start3 = System.currentTimeMillis()
+    val nodesThatHaveACommonPredecessorWith = new scala.Array[collection.BitSet](source.nodes().size)
+    source.nodes().foreachPar(node => {
+      val predecessors = collection.mutable.BitSet()
+      source.predecessors(node).foreach({ (_, pred) => predecessors.add(pred) })
+      nodesThatHaveACommonPredecessorWith(node) =
+        predecessors.flatMap(pred => source.successorRelations(pred).flatMap(rel => source.successorsForRelation(pred, rel)))
+    })
+    //logger.println("Common predecessor relation: " + Util.formatTime(System.currentTimeMillis() - start3))
+//    var continueMultiThreaded = true
+//    while (continueMultiThreaded && R.keySet.nonEmpty) {
+    while (R.keySet.nonEmpty) {
+
+      val futures = java.util.concurrent.ConcurrentLinkedQueue[scala.concurrent.Future[_]]()
+      //val remainingNodes = collection.mutable.HashSet.from(R.keySet.iterator.take(4 * Runtime.getRuntime.availableProcessors()))
+      //      val startA = System.currentTimeMillis()
+      val remainingNodes = collection.mutable.HashSet.from(R.keySet)
+      //      logger.println("HashSet.from: " + Util.formatTime(System.currentTimeMillis() - startA))
+      //      val startB = System.currentTimeMillis()
+      //      val _remainingNodes = {
+      //        val len = ((graph.nodes().size - 1) >> 6) + 1
+      //        val bitMask = new scala.Array[Long](len)
+      //        (0 until len).foreachPar(idx => {
+      //          val min = idx << 6
+      //          val max = (idx + 1) << 6
+      //          var mask = 0L
+      //          (min to max).foreach(elem => {
+      //            if (R.keySet contains elem) {
+      //              mask |= 1L << elem
+      //            }
+      //          })
+      //          bitMask(idx) = mask
+      //        })
+      //        collection.mutable.BitSet.fromBitMask(bitMask)
+      //      }
+      //      logger.println("BitSet.fromBitMask: " + Util.formatTime(System.currentTimeMillis() - startB))
+      //val remainingNodes = collection.mutable.BitSet.fromSpecific(R.keySet)
+//      var parallelism = 0
+
+      while (remainingNodes.nonEmpty) {
+        val x = remainingNodes.head
+        remainingNodes -= x
+        remainingNodes --= nodesThatHaveACommonPredecessorWith(x)
+        //remainingNodes &~= nodesThatHaveACommonPredecessorWith(x)
+//        parallelism += 1
+        futures.add(scala.concurrent.Future {
+          val Rx = R.remove(x).get
+          Rx.rows().foreach({ r =>
+            logger.tick()
+            // TODO: Use Java's Fork/Join Framework for additional speed-up
+            source.predecessorsForRelation(x, r).foreach { xx =>
+              val simRow = simulation.row(xx)
+              val simRowView = simRow.viewAsImmutableBitSet
+              (Rx.rowImmutable(r) intersect simRowView).foreach { yy =>
+                simRow.remove(yy)
+                simulation.col(yy).remove(xx)
+                target.predecessors(yy).foreach { (rr, yyy) =>
+                  val successors = target.successorsForRelation(yyy, rr)
+                  if ((simRowView intersect successors).isEmpty) {
+                    addToR(xx, rr, yyy)
+                  }
+                }
+              }
+            }
+          })
+        })
+      }
+
+      futures.asScala.awaitEach()
+
+//      continueMultiThreaded = parallelism > 2
+
+    }
+
+//    logger.println()
+//    logger.println("Now continuing single-threaded...")
+//    while (R.keySet.nonEmpty) {
+//      val x = R.keySet.head
+//      // TODO: Define a method for the following code as it is a duplicate of the above code in the Future.
+//      val Rx = R.remove(x).get
+//      Rx.rows().foreach({ r =>
+//        logger.tick()
+//        for (xx <- graph.predecessorsForRelation(x, r)) {
+//          val simRow = simulation.row(xx)
+//          val simRowView = simRow.viewAsImmutableBitSet
+//          for (yy <- Rx.rowImmutable(r) intersect simRowView) {
+//            simRow.remove(yy)
+//            simulation.col(yy).remove(xx)
+//            for ((rr, yyy) <- graph.predecessors(yy)) {
+//              val successors = graph.successorsForRelation(yyy, rr)
+//              if ((simRowView intersect successors).isEmpty) {
+//                addToR(xx, rr, yyy)
+//              }
+//            }
+//          }
+//        }
+//      })
+//    }
 
     logger.reset()
     println("Phase 3: " + Util.formatTime(System.currentTimeMillis() - start3))

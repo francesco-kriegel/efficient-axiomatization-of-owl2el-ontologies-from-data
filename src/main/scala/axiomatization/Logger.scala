@@ -37,8 +37,8 @@ final class ConsoleLogger() extends Logger {
     if (i % 1000 == 0) {
       val current = System.currentTimeMillis()
       val last = time.getAndSet(current)
-      val j = (1000000 / (current - last)).toInt
-      val k = ((1000 * i) / (current - start.get())).toInt
+      val j = (1000000L / (current - last)).toInt
+      val k = ((1000L * i.toLong) / (current - start.get())).toInt
       cRate.set(j)
       tRate.set(k)
       print(s"\r$i (current: $j/s, total: $k/s)        ")
