@@ -31,14 +31,16 @@ final class ConsoleLogger() extends Logger {
   private val cRate = AtomicInteger(0)
   private val tRate = AtomicInteger(0)
 
+  private val updateRate = 100
+
   override def tick(): Unit = {
     //print("\r" + n.incrementAndGet())
     val i = n.incrementAndGet()
-    if (i % 1000 == 0) {
+    if (i % updateRate == 0) {
       val current = System.currentTimeMillis()
       val last = time.getAndSet(current)
-      val j = (1000000L / (current - last)).toInt
-      val k = ((1000L * i.toLong) / (current - start.get())).toInt
+      val j = ((1000L * updateRate.toLong) / Math.max(1, current - last)).toInt
+      val k = ((1000L * i.toLong) / Math.max(1, current - start.get())).toInt
       cRate.set(j)
       tRate.set(k)
       print(s"\r$i (current: $j/s, total: $k/s)        ")

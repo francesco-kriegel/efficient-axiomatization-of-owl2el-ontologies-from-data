@@ -86,7 +86,7 @@ object IrreduciblesTest {
 
       if (false) {
 
-        val simulation = Interpretation.maximalSimulationOn(graph)
+        val simulation = GraphSimulator.computeMaximalSimulation(graph, graph)
 
         val strictlyAboveArray = new scala.Array[scala.collection.mutable.BitSet](size)
         val doubleStrictlyAboveArray = new scala.Array[scala.collection.mutable.BitSet](size)
@@ -99,7 +99,7 @@ object IrreduciblesTest {
 
         def strictlyAbove(node: Int): scala.collection.mutable.BitSet =
           arrayGetOrUpdate(strictlyAboveArray, node, n => {
-            simulation.row(n) diff simulation.col(n)
+            simulation.row(n).viewAsMutableBitSet diff simulation.col(n).viewAsMutableBitSet
           })
 
         def doubleStrictlyAbove(node: Int): scala.collection.mutable.BitSet =
@@ -113,7 +113,7 @@ object IrreduciblesTest {
           })
 
   //      val clop1 = PoweringClosureOperator(graph)
-        val clop2 = PoweringClosureOperator2(graph, None, Some(64), false)
+        val clop2 = PoweringClosureOperator(graph, None, Some(64), false)
 //        val clop2a = PoweringClosureOperator2a(graph)
   //      val clop3 = PoweringClosureOperator3(graph)
 

@@ -9,7 +9,7 @@ import util.control.Breaks.*
 import de.tu_dresden.inf.lat.axiomatization.Util.{printExecutionTime, writeExecutionTime}
 import de.tu_dresden.inf.lat.parallel.NestedParallelComputations._
 
-object FCbOPar2 {
+object FCbOPar {
 
   def computeAllClosures(n: Int,
                          closure: collection.BitSet => collection.BitSet,
@@ -61,124 +61,7 @@ object FCbOPar2 {
 
 }
 
-@Deprecated(forRemoval = true)
-object FCbOPar {
 
-  def computeAllClosures(n: Int,
-                         closure: collection.BitSet => collection.BitSet,
-                         inclusionIdeal: collection.BitSet => Boolean = _ => true)
-                        (using logger: Logger)
-  : mutable.Map[collection.BitSet, collection.BitSet] = {
-
-//    val executor = java.util.concurrent.Executors.newWorkStealingPool()
-//    val numberOfCores = Runtime.getRuntime.availableProcessors()
-    val closures = collection.concurrent.TrieMap[collection.BitSet, collection.BitSet]()
-
-    def FCbOPar(xs: collection.BitSet, i: Int, ns: Array[collection.BitSet], nsMin: Int): Unit = {
-      val n_i = n - i
-      val queue = new scala.Array[collection.BitSet](n_i)
-      val ms = new scala.Array[collection.BitSet](n_i)
-      Array.copy(ns.array, ns.array.length - n_i, ms.array, 0, n_i)
-
-//      // for (j <- i until n) {
-//      (i until n).par.foreach { j =>
-//        // ms.put(j, ns(j))
-//        ms(j - i) = ns(j)
-//        if (!xs(j)) {
-//          val diff = ns(j) diffOrReportBug xs
-//          if (diff.isEmpty || diff.min >= j) {
-//            val xs_j = xs + j
-//            if (inclusionIdeal(xs_j)) {
-//              val ys = closure(xs_j)
-//              if ((ys diffOrReportBug xs).min >= j)
-//                logger.tick()
-//                // queue.enqueue((ys, xs_j, j))
-//                // queue.add((ys, xs_j, j))
-//                queue(j - i) = (ys, xs_j)
-//              else
-//                // ms.put(j, ys)
-//                ms(j - i) = ys
-//            }
-//          }
-//        }
-//      }
-
-//      val windowSize = ((n - i) / (2 * numberOfCores)) max 64
-//      (i until n by windowSize).map(k =>
-//        executor.submit(() => {
-//          (k until (n min (k + windowSize))).foreach(j => {
-//            ms(j - i) = ns(j)
-//            if (!xs(j)) {
-//              val diff = ns(j) diffOrReportBug xs
-//              if (diff.isEmpty || diff.min >= j) {
-//                val xs_j = xs + j
-//                if (inclusionIdeal(xs_j)) {
-//                  val ys = closure(xs_j)
-//                  if ((ys diffOrReportBug xs).min >= j)
-//                    logger.tick()
-//                    queue(j - i) = (ys, xs_j)
-//                  else
-//                    ms(j - i) = ys
-//                }
-//              }
-//            }
-//          })
-//          0
-//        })
-//      ).foreach(_.get())
-
-//      (i until n).filterNot(xs).par.foreach { j =>
-//        val diff = ns(j - nsMin) diff xs
-//        if (diff.isEmpty || diff.min >= j) {
-//          val xs_j = xs + j
-//          if (inclusionIdeal(xs_j)) {
-//            val ys = closure(xs_j)
-//            if ((ys diff xs).min >= j)
-//              logger.tick()
-//              closures(ys) = xs_j
-//              queue(j - i) = ys
-//            else
-//              ms(j - i) = ys
-//          }
-//        }
-//      }
-
-      (i until n).map { j =>
-        if (!(xs contains j)) {
-          scala.concurrent.Future {
-            val diff = ns(j - nsMin) diff xs
-            if (diff.isEmpty || diff.min >= j) {
-              val xs_j = xs + j
-              if (inclusionIdeal(xs_j)) {
-                val ys = closure(xs_j)
-                if ((ys diff xs).min >= j)
-                  logger.tick()
-                  closures(ys) = xs_j
-                  queue(j - i) = ys
-                else
-                  ms(j - i) = ys
-              }
-            }
-          }
-        } else { scala.concurrent.Future.unit }
-      } foreach { scala.concurrent.Await.ready(_, scala.concurrent.duration.Duration.Inf) }
-
-      (i until n).foreach { j =>
-        val ys = queue(j - i)
-        if (ys != null)
-          FCbOPar(ys, j + 1, ms, i)
-      }
-    }
-
-    FCbOPar(collection.BitSet.empty, 0, Array.fill(n)(collection.BitSet.empty), 0)
-
-    logger.println()
-
-    closures
-
-  }
-
-}
 
 object FCbO {
 

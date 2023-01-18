@@ -1,6 +1,6 @@
 package de.tu_dresden.inf.lat.concurrent;
 
-public class ConcurrentBoundedBitSet2 {
+public class ConcurrentBoundedBitSet {
 
 //    public static final java.lang.invoke.VarHandle varHandleArray;
 //
@@ -17,12 +17,12 @@ public class ConcurrentBoundedBitSet2 {
     protected final long[] array;
     private final int maxElem;
 
-    public ConcurrentBoundedBitSet2(int maxElem) {
+    public ConcurrentBoundedBitSet(int maxElem) {
         this.array = new long[(maxElem >> 6) + 1];
         this.maxElem = maxElem;
     }
 
-    public ConcurrentBoundedBitSet2(long[] elems) {
+    public ConcurrentBoundedBitSet(long[] elems) {
         this.array = elems;
         this.maxElem = ((elems.length << 6) - 1);
     }

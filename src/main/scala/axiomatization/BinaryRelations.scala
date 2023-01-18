@@ -1,85 +1,33 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
+import de.tu_dresden.inf.lat.concurrent.ConcurrentBoundedBitSet
+
 import scala.collection.concurrent.TrieMap
 import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.jdk.CollectionConverters.*
 
-@Deprecated(forRemoval = true)
-class BitSetToIntRelationThatExtendsInverseElementhood {
 
-  private val bits = collection.concurrent.TrieMap[collection.BitSet, mutable.BitSet]()
 
-  def add(xs: collection.BitSet, y: Int): Unit =
-    if (!xs(y)) bits.getOrElseUpdate(xs, mutable.BitSet()).addOne(y)
 
-  def remove(xs: collection.BitSet, y: Int): Unit =
-    if (xs(y)) throw new IllegalArgumentException()
-    else if (bits.contains(xs)) bits(xs).remove(y)
-
-  def contains(xs: collection.BitSet, y: Int): Boolean =
-    xs(y) || (bits.contains(xs) && bits(xs)(y))
-
-  def apply(xs: collection.BitSet, y: Int): Boolean =
-    contains(xs, y)
-
-  def row(xs: collection.BitSet): collection.BitSet =
-    if (bits.contains(xs)) xs ++ bits(xs)
-    else xs
-
-  def rawRow(xs: collection.BitSet): collection.BitSet =
-    bits.getOrElse(xs, BitSet.empty)
-
-  def rows = bits.keySet
-
-  def clear(): Unit =
-    bits.clear()
-
-}
-
-@Deprecated(forRemoval = true)
-class BitSetToIntRelation {
-
-  val bits = collection.concurrent.TrieMap[collection.BitSet, mutable.BitSet]()
-
-  def add(xs: collection.BitSet, y: Int): Unit =
-    bits.getOrElseUpdate(xs, mutable.BitSet()).addOne(y)
-
-  def remove(xs: collection.BitSet, y: Int): Unit =
-    if (bits.contains(xs)) bits(xs).remove(y)
-
-  def contains(xs: collection.BitSet, y: Int): Boolean =
-    bits.contains(xs) && bits(xs)(y)
-
-  def apply(xs: collection.BitSet, y: Int): Boolean =
-    contains(xs, y)
-
-  def row(xs: collection.BitSet): collection.BitSet =
-    bits.getOrElse(xs, BitSet.empty)
-
-  def rows = bits.keySet
-
-  def clear(): Unit =
-    bits.clear()
-
-}
 
 trait ConcurrentToIntRelation[T] {
   def add(x: T, y: Int): Unit
   def remove(x: T, y: Int): Unit
   def contains(x: T, y: Int): Boolean
   def apply(x: T, y: Int): Boolean = contains(x, y)
-  def row(x: T): concurrent.ConcurrentBoundedBitSet2
+  def row(x: T): ConcurrentBoundedBitSet
 }
 
 class ConcurrentBitSetToIntRelation(maxY: Int) extends ConcurrentToIntRelation[collection.BitSet] {
 
-  private val bits = collection.concurrent.TrieMap[collection.BitSet, concurrent.ConcurrentBoundedBitSet2]()
+//  private val bits = collection.concurrent.TrieMap[collection.BitSet, concurrent.ConcurrentBoundedBitSet2]()
+  private val bits = java.util.concurrent.ConcurrentHashMap[collection.BitSet, ConcurrentBoundedBitSet]().asScala
 
   def add(xs: collection.BitSet, y: Int): Unit =
-    bits.getOrElseUpdate(xs, concurrent.ConcurrentBoundedBitSet2(maxY)).add(y)
+    bits.getOrElseUpdate(xs, concurrent.ConcurrentBoundedBitSet(maxY)).add(y)
 
   def remove(xs: collection.BitSet, y: Int): Unit =
     if (bits.contains(xs)) bits(xs).remove(y)
@@ -90,38 +38,13 @@ class ConcurrentBitSetToIntRelation(maxY: Int) extends ConcurrentToIntRelation[c
 //  def apply(xs: collection.BitSet, y: Int): Boolean =
 //    contains(xs, y)
 
-  def row(xs: collection.BitSet): concurrent.ConcurrentBoundedBitSet2 =
+  def row(xs: collection.BitSet): ConcurrentBoundedBitSet =
     // bits(xs)
-    bits.getOrElseUpdate(xs, concurrent.ConcurrentBoundedBitSet2(maxY))
+    bits.getOrElseUpdate(xs, concurrent.ConcurrentBoundedBitSet(maxY))
 
 }
 
-@Deprecated(forRemoval = true)
-class ReflexiveBitRelation[T] extends BitRelation[T, T] {
 
-  override def add(x: T, y: T): Unit =
-    if (!(x equals y)) super.add(x, y)
-
-  override def remove(x: T, y: T): Unit =
-    if (x equals y) throw new IllegalArgumentException()
-    else super.remove(x, y)
-
-  override def contains(x: T, y: T): Boolean =
-    (x equals y) || super.contains(x, y)
-
-  override def rowAsArrayBuffer(x: T): ArrayBuffer[T] =
-    super.rowAsArrayBuffer(x).addOne(x)
-
-  override def colAsArrayBuffer(y: T): ArrayBuffer[T] =
-    super.colAsArrayBuffer(y).addOne(y)
-
-  override def rowAsSet(x: T): collection.Set[T] =
-    super.rowAsSet(x) + x
-
-  override def colAsSet(y: T): collection.Set[T] =
-    super.colAsSet(y) + y
-
-}
 
 @Deprecated(forRemoval = true)
 class BitRelation[R, C] {
@@ -223,32 +146,7 @@ class BitRelation[R, C] {
 
 }
 
-@Deprecated(forRemoval = true)
-class ReflexiveLongBitRelation[T] extends LongBitRelation[T, T] {
 
-  override def add(x: T, y: T): Unit =
-    if (!(x equals y)) super.add(x, y)
-
-  override def remove(x: T, y: T): Unit =
-    if (x equals y) throw new IllegalArgumentException()
-    else super.remove(x, y)
-
-  override def contains(x: T, y: T): Boolean =
-    (x equals y) || super.contains(x, y)
-
-  override def rowAsArrayBuffer(x: T): ArrayBuffer[T] =
-    super.rowAsArrayBuffer(x).addOne(x)
-
-  override def colAsArrayBuffer(y: T): ArrayBuffer[T] =
-    super.colAsArrayBuffer(y).addOne(y)
-
-  override def rowAsSet(x: T): collection.Set[T] =
-    super.rowAsSet(x) + x
-
-  override def colAsSet(y: T): collection.Set[T] =
-    super.colAsSet(y) + y
-
-}
 
 @Deprecated(forRemoval = true)
 class LongBitRelation[R, C] {
@@ -515,10 +413,10 @@ class ArrayBitBiMap(rows: Int, cols: Int) {
 
 class ConcurrentArrayBitBiMap(rows: Int, cols: Int) extends ConcurrentToIntRelation[Int] {
 
-  private val rowArray = new scala.Array[concurrent.ConcurrentBoundedBitSet2](rows)
-  private val colArray = new scala.Array[concurrent.ConcurrentBoundedBitSet2](cols)
-  (0 until rows).foreach(i => rowArray(i) = concurrent.ConcurrentBoundedBitSet2(cols - 1))
-  (0 until cols).foreach(j => colArray(j) = concurrent.ConcurrentBoundedBitSet2(rows - 1))
+  private val rowArray = new scala.Array[ConcurrentBoundedBitSet](rows)
+  private val colArray = new scala.Array[ConcurrentBoundedBitSet](cols)
+  (0 until rows).foreach(i => rowArray(i) = concurrent.ConcurrentBoundedBitSet(cols - 1))
+  (0 until cols).foreach(j => colArray(j) = concurrent.ConcurrentBoundedBitSet(rows - 1))
 
   def add(x: Int, y: Int): Unit = {
     rowArray(x).add(y)
@@ -538,64 +436,25 @@ class ConcurrentArrayBitBiMap(rows: Int, cols: Int) extends ConcurrentToIntRelat
     colArray(y).remove(x)
   }
 
-  def row(x: Int): concurrent.ConcurrentBoundedBitSet2 = {
+  def row(x: Int): ConcurrentBoundedBitSet = {
     rowArray(x)
   }
 
-  def col(y: Int): concurrent.ConcurrentBoundedBitSet2 = {
+  def col(y: Int): ConcurrentBoundedBitSet = {
     colArray(y)
   }
 
 }
 
-@Deprecated(forRemoval = true)
-class SynchronizedArrayBitBiMap(rows: Int, cols: Int) {
 
-  private val rowArray = new scala.Array[mutable.BitSet](rows)
-  private val colArray = new scala.Array[mutable.BitSet](cols)
-  (0 until rows).foreach(i => rowArray(i) = mutable.BitSet())
-  (0 until cols).foreach(j => colArray(j) = mutable.BitSet())
-
-  def add(x: Int, y: Int): Unit = {
-    val row = rowArray(x)
-    row.synchronized { row.add(y) }
-    val col = colArray(y)
-    col.synchronized { col.add(x) }
-  }
-
-  def apply(x: Int, y: Int): Boolean = {
-    contains(x, y)
-  }
-
-  def contains(x: Int, y: Int): Boolean = {
-    val row = rowArray(x)
-    row.synchronized { row.contains(y) }
-  }
-
-  def remove(x: Int, y: Int): Unit = {
-    val row = rowArray(x)
-    row.synchronized { row.remove(y) }
-    val col = colArray(y)
-    col.synchronized { col.remove(x) }
-  }
-
-  def row(x: Int): mutable.BitSet = {
-    rowArray(x)
-  }
-
-  def col(y: Int): mutable.BitSet = {
-    colArray(y)
-  }
-
-}
 
 class ConcurrentBitMap[T](maxY: Int) {
 
 //  private val rowMap = scala.collection.concurrent.TrieMap[T, concurrent.ConcurrentBoundedBitSet2]()
-  val rowMap = java.util.concurrent.ConcurrentHashMap[T, concurrent.ConcurrentBoundedBitSet2]().asScala
+  val rowMap = java.util.concurrent.ConcurrentHashMap[T, ConcurrentBoundedBitSet]().asScala
 
   def add(x: T, y: Int): Unit = {
-    rowMap.getOrElseUpdate(x, concurrent.ConcurrentBoundedBitSet2(maxY)).add(y)
+    rowMap.getOrElseUpdate(x, concurrent.ConcurrentBoundedBitSet(maxY)).add(y)
 //    rowMap.computeIfAbsent(x, _ => concurrent.ConcurrentBoundedBitSet2(maxY)).add(y)
   }
 
@@ -624,11 +483,11 @@ class ConcurrentBitMap[T](maxY: Int) {
     else scala.collection.immutable.BitSet.empty
   }
 
-  def row(x: T): Option[concurrent.ConcurrentBoundedBitSet2] = {
+  def row(x: T): Option[ConcurrentBoundedBitSet] = {
     rowMap.get(x)
   }
 
-  def clearRow(x: T): Option[concurrent.ConcurrentBoundedBitSet2] = {
+  def clearRow(x: T): Option[ConcurrentBoundedBitSet] = {
     rowMap.remove(x)
   }
 
@@ -637,11 +496,11 @@ class ConcurrentBitMap[T](maxY: Int) {
 class ConcurrentBitBiMap(maxX: Int, maxY: Int) extends ConcurrentBitMap[Int](maxY) {
 
 //  private val colMap = scala.collection.concurrent.TrieMap[Int, concurrent.ConcurrentBoundedBitSet2]()
-  val colMap = java.util.concurrent.ConcurrentHashMap[Int, concurrent.ConcurrentBoundedBitSet2]().asScala
+  val colMap = java.util.concurrent.ConcurrentHashMap[Int, ConcurrentBoundedBitSet]().asScala
 
   override def add(x: Int, y: Int): Unit = {
     super.add(x, y)
-    colMap.getOrElseUpdate(y, concurrent.ConcurrentBoundedBitSet2(maxX)).add(x)
+    colMap.getOrElseUpdate(y, concurrent.ConcurrentBoundedBitSet(maxX)).add(x)
   }
 
   override def remove(x: Int, y: Int): Unit = {
@@ -659,11 +518,11 @@ class ConcurrentBitBiMap(maxX: Int, maxY: Int) extends ConcurrentBitMap[Int](max
     else scala.collection.immutable.BitSet.empty
   }
 
-  def col(y: Int): Option[concurrent.ConcurrentBoundedBitSet2] = {
+  def col(y: Int): Option[ConcurrentBoundedBitSet] = {
     colMap.get(y)
   }
 
-  def clearCol(y: Int): Option[concurrent.ConcurrentBoundedBitSet2] = {
+  def clearCol(y: Int): Option[ConcurrentBoundedBitSet] = {
     colMap.remove(y)
   }
 

@@ -22,114 +22,104 @@ import scala.jdk.StreamConverters.*
 import scala.util.control.Breaks
 import scala.util.control.Breaks.*
 
-@Deprecated(forRemoval = true)
+class PoweringClosureOperator(graph: BitGraph[OWLClass, OWLObjectProperty],
+                              knownSimulation: Option[ConcurrentArrayBitBiMap] = None,
+                              maxConjunctionSize: Option[Int] = None,
+                              throwExceptionWhenSomeConjunctionIsTooLarge: Boolean = false,
+                              maxRoleDepth: Option[Int] = None)
+  extends PoweringSimulator(graph, graph, knownSimulation, maxConjunctionSize, throwExceptionWhenSomeConjunctionIsTooLarge, maxRoleDepth) {
+
+  override def apply(xs: collection.BitSet): collection.BitSet = {
+    if xs equals graph.nodes() then graph.nodes() else super.apply(xs)
+  }
+
+}
+
 class PoweringSimulator(val source: BitGraph[OWLClass, OWLObjectProperty],
-                        val knownSimulation: Option[BitBiMap] = None,
-                        val maxRoleDepth: Option[Int] = None,
-                        val target: BitGraph[OWLClass, OWLObjectProperty])
+                        val target: BitGraph[OWLClass, OWLObjectProperty],
+                        val knownSimulation: Option[ConcurrentArrayBitBiMap] = None,
+                        val maxConjunctionSize: Option[Int] = None,
+                        val throwExceptionWhenSomeConjunctionIsTooLarge: Boolean = false,
+                        val maxRoleDepth: Option[Int] = None)
   extends Function[collection.BitSet, collection.BitSet] {
 
   given logger: Logger = NoLogger()
-  val simulation = if knownSimulation.isDefined then knownSimulation.get else Interpretation.maximalSimulationOn(source)
+
+  val simulation = if knownSimulation.isDefined then knownSimulation.get else GraphSimulator.computeMaximalSimulation(source, source)
+
+  private def isTooLarge(hypergraph: collection.Set[collection.BitSet], limit: Int): Boolean = {
+    var tooLarge = false
+    var hypergraphSize = 1L
+    val it = hypergraph.iterator
+    val whileLoop = new Breaks
+    whileLoop.breakable {
+      while (it.hasNext)
+        hypergraphSize *= it.next().size
+        if (hypergraphSize > limit)
+          tooLarge = true
+          whileLoop.break()
+    }
+    tooLarge
+  }
 
   def apply(xs: collection.BitSet): collection.BitSet = {
 
-    val poweringSimulation = BitSetToIntRelation()
     val powering = HashGraph[collection.BitSet, OWLClass, OWLObjectProperty]()
 
     @tailrec
-    def extendPowering(current: IterableOnce[collection.BitSet], maxRoleDepth: Option[Int]): Unit = {
+    def extendPowering(current: IterableOnce[collection.BitSet], maxRoleDepth: Option[Int]): Option[IllegalArgumentException] = {
+      var exception: Option[IllegalArgumentException] = None
       val next = mutable.HashSet[collection.BitSet]()
       val forLoop = new Breaks
       forLoop.breakable {
         for (xs <- current) {
           if (!powering.nodes().contains(xs)) {
-//              if (!(xs subsetOf source.nodes()))
-//                throw new IllegalArgumentException()
             powering.nodes().addOne(xs)
             val labels = xs.unsorted.tail.map(source.labels(_)).foldLeft(source.labels(xs.head))(_ intersect _)
             powering.addLabels(xs, labels)
+            if (maxConjunctionSize.isDefined && (labels.size > maxConjunctionSize.get))
+              exception = Some(IllegalArgumentException("There are too many labels."))
+              forLoop.break()
             if (maxRoleDepth.isEmpty || maxRoleDepth.get > 0) {
               val relations = xs.unsorted.tail.foldLeft(source.successorRelations(xs.head))(_ intersect source.successorRelations(_))
               relations.foreach(r => {
                 val hypergraph: collection.Set[collection.BitSet] = xs.unsorted.map(x => source.successorsForRelation(x, r))
-                HSdagBits.allMinimalHittingSets(hypergraph)
-                  .map(mhs => mhs.filter(x => mhs.forall(y => !simulation(y, x))))
-                  .foreach(ys => {
-                    powering.addEdge(xs, r, ys)
-                    next.addOne(ys)
-                  })
+                if (maxConjunctionSize.isDefined && isTooLarge(hypergraph, maxConjunctionSize.get - labels.size)) {
+                  exception = Some(IllegalArgumentException("The hypergraph is too big: " + hypergraph.tail.foldLeft(hypergraph.head.size + "")(_ + " x " + _.size)))
+                  forLoop.break()
+                } else {
+                  HSdagBits.allMinimalHittingSets(hypergraph)
+                    // We only keep the simulation-minimal elements, i.e., which are not simulated by another element.
+                    // We assume the the source is reduced, otherwise we would need to modify the filter condition.
+                    .map(mhs => mhs.filter(x => mhs.forall(y => (x equals y) || !simulation(y, x))))
+                    .foreach(ys => {
+                      powering.addEdge(xs, r, ys)
+                      next.addOne(ys)
+                    })
+                }
               })
             }
           }
         }
       }
-      if (next.nonEmpty)
+      if (exception.isDefined)
+        exception
+      else if (next.nonEmpty)
         extendPowering(next, maxRoleDepth.map(_ - 1))
+      else
+        None
     }
 
-    extendPowering(Set(xs), maxRoleDepth)
-
-    //      val poweringSimulation = BitSetToIntRelation()
-
-    for (y <- target.nodes()) {
-      val yLabels = target.labels(y)
-      val yProperties = target.successorRelations(y)
-      for (ds <- powering.nodes()) {
-        if ((powering.labels(ds) subsetOf yLabels)
-          && (powering.successorRelations(ds) subsetOf yProperties)) {
-          poweringSimulation.add(ds, y)
-        }
-      }
+    val exception = extendPowering(Set(xs), maxRoleDepth)
+    if (exception.isDefined) {
+      if (throwExceptionWhenSomeConjunctionIsTooLarge)
+        throw exception.get
+      else
+        if source equals target then source.nodes() else collection.BitSet.empty
+    } else {
+      val poweringSimulation = GraphSimulator.computeMaximalSimulation(powering, target)
+      poweringSimulation.row(xs).viewAsImmutableBitSet
     }
-
-    //        println("Computing the mapping R(x,r)...")
-    //        val powR = new collection.concurrent.TrieMap[(BitSet, OWLObjectProperty), mutable.BitSet] //with mutable.MultiMap[(BitSet, OWLObjectProperty), Int]
-    val powR = new mutable.HashMap[(collection.BitSet, OWLObjectProperty), mutable.BitSet]
-    // val powR = ConcurrentBitMap[(collection.BitSet, OWLObjectProperty)](target.nodes().size - 1)
-
-    for (x <- powering.nodes()) {
-    // for (x <- powering.nodes().par) {
-      for (yy <- target.nodes()) {
-        for (property <- target.successorRelations(yy)) {
-          if ((poweringSimulation.row(x) intersect target.successorsForRelation(yy, property)).isEmpty) {
-            // powR.add((x, property), yy)
-            powR.getOrElseUpdate((x, property), mutable.BitSet()).addOne(yy)
-          }
-        }
-      }
-    }
-
-    //        println("Updating the simulation...")
-    @tailrec
-    def powLoop(): Unit = {
-      // if (powR.rows().nonEmpty) {
-      if (powR.keySet.nonEmpty) {
-        // val (x, r) = powR.rows().head
-        val (x, r) = powR.keySet.head
-        for (xx <- powering.predecessorsForRelation(x, r)) {
-          // for (yy <- powR.row((x, r))) {
-          for (yy <- powR(x, r)) {
-            if (poweringSimulation(xx, yy)) {
-              poweringSimulation.remove(xx, yy)
-              for ((rr, yyy) <- target.predecessors(yy)) {
-                if ((poweringSimulation.row(xx) intersect target.successorsForRelation(yyy, rr)).isEmpty) {
-                  // powR.add((xx, rr), yyy)
-                  powR.getOrElseUpdate((xx, rr), mutable.BitSet()).addOne(yyy)
-                }
-              }
-            }
-          }
-        }
-        powR.remove((x, r))
-        // powR.clearRow((x, r))
-        powLoop()
-      }
-    }
-
-    powLoop()
-
-    poweringSimulation.row(xs)
 
   }
 

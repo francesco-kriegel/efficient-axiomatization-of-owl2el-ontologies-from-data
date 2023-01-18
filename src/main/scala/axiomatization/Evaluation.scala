@@ -3,6 +3,8 @@ package axiomatization
 
 import collection.parallel.CollectionConverters.*
 import org.phenoscape.scowl.*
+
+import scala.annotation.tailrec
 import scala.jdk.StreamConverters.*
 
 object Evaluation {
@@ -622,7 +624,7 @@ object Evaluation {
 
             println("Determining number of irreducibles in " + file)
 
-            val simulation = Interpretation.maximalSimulationOn(graph)
+            val simulation = GraphSimulator.computeMaximalSimulation(graph, graph)
 
             val strictlyAboveArray = new scala.Array[scala.collection.mutable.BitSet](size)
             val doubleStrictlyAboveArray = new scala.Array[scala.collection.mutable.BitSet](size)
@@ -635,7 +637,7 @@ object Evaluation {
 
             def strictlyAbove(node: Int): scala.collection.mutable.BitSet =
               arrayGetOrUpdate(strictlyAboveArray, node, n => {
-                simulation.row(n) diff simulation.col(n)
+                simulation.row(n).viewAsMutableBitSet diff simulation.col(n).viewAsMutableBitSet
               })
 
             def doubleStrictlyAbove(node: Int): scala.collection.mutable.BitSet =
@@ -733,6 +735,36 @@ object Evaluation {
     }
 
     isAcyclic
+  }
+
+
+  def getConnectedComponents[L, R](graph: BitGraph[L, R]): collection.Set[collection.BitSet] = {
+    val connectedComponents = collection.mutable.HashSet[collection.BitSet]()
+    val hasNotBeenVisited = graph.nodes().clone()
+    while (hasNotBeenVisited.nonEmpty) {
+      val connectedComponent = collection.mutable.BitSet()
+
+      @tailrec def dfs(nodes: Iterable[Int]): Unit = {
+        val next = collection.mutable.BitSet()
+        for (node <- nodes) {
+          if (hasNotBeenVisited(node) == true) {
+            hasNotBeenVisited(node) = false
+            connectedComponent.addOne(node)
+            //graph.predecessors(node).foreach({ case (_, pred) => dfs(pred) })
+            //graph.successorRelations(node).flatMap(graph.successorsForRelation(node, _)).foreach({ succ => dfs(succ) })
+            next.addAll(graph.predecessors(node).map(_._2))
+            next.addAll(graph.successorRelations(node).flatMap(graph.successorsForRelation(node, _)))
+          }
+        }
+        if (next.nonEmpty) {
+          dfs(next)
+        }
+      }
+
+      dfs(Iterable.single(hasNotBeenVisited.head))
+      connectedComponents.addOne(connectedComponent)
+    }
+    connectedComponents
   }
 
 }
