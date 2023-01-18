@@ -21,7 +21,7 @@ import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
 import scala.jdk.CollectionConverters.*
 
-@Deprecated
+@Deprecated(forRemoval = true)
 class PoweringClosureOperator(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
 
   def apply(xs: collection.BitSet): collection.BitSet = {

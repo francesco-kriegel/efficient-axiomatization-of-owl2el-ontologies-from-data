@@ -1,6 +1,7 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
+@Deprecated(forRemoval = true)
 object BitSetTest {
 
 //  var int = 0
@@ -17,18 +18,33 @@ object BitSetTest {
 
     import scala.concurrent.ExecutionContext.Implicits.global
 
+    val start1 = System.currentTimeMillis()
     val bs = concurrent.ConcurrentBitSet()
+    println("Instatiation: " + Util.formatTime(System.currentTimeMillis() - start1))
 
-    (0 until 16384 by 1).map(i => {
+    val range = 0 until (1 << 20) by 1
+    //scala.collection.immutable.List.from(range)
+    val rangeInRandomOrder = scala.util.Random.shuffle(range)
+    val start2 = System.currentTimeMillis()
+    rangeInRandomOrder.map(i => {
       scala.concurrent.Future {
         bs.add(i)
       }
     }).foreach(scala.concurrent.Await.ready(_, scala.concurrent.duration.Duration.Inf))
+    //rangeInRandomOrder.foreach(bs.add)
+    println("Adding elements: " + Util.formatTime(System.currentTimeMillis() - start2))
 
+    val start3 = System.currentTimeMillis()
     bs.disallowResize()
+    println("Consolidation: " + Util.formatTime(System.currentTimeMillis() - start3))
 
+    val start4 = System.currentTimeMillis()
     println(bs.viewAsImmutableBitSet().size)
-    println((0 until 16384 by 1).forall(bs.contains))
+    println("Determination of size: " + Util.formatTime(System.currentTimeMillis() - start3))
+
+    val start5 = System.currentTimeMillis()
+    println(range.forall(bs.contains))
+    println("Checking elements: " + Util.formatTime(System.currentTimeMillis() - start3))
 
 
 //    val handle = java.lang.invoke.MethodHandles.lookup().findStaticVarHandle(this.getClass, "int", int.getClass)

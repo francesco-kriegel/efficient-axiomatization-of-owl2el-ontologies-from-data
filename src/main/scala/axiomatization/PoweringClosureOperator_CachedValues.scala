@@ -21,6 +21,7 @@ import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
 import scala.jdk.CollectionConverters.*
 
+@Deprecated(forRemoval = true)
 class PoweringClosureOperator_CachedValues(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
 
   val poweringSimulation = BitSetToIntRelationThatExtendsInverseElementhood()

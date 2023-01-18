@@ -22,6 +22,7 @@ import scala.jdk.StreamConverters.*
 import scala.util.control.Breaks
 import scala.util.control.Breaks.*
 
+@Deprecated(forRemoval = true)
 class PoweringClosureOperator2(val graph: BitGraph[OWLClass, OWLObjectProperty],
                                val knownSimulation: Option[BitBiMap] = None,
                                val maxConjunctionSize: Option[Int] = None,

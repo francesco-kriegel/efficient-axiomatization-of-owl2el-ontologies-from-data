@@ -3,6 +3,7 @@ package axiomatization
 
 import collection.parallel.CollectionConverters.*
 
+@Deprecated(forRemoval = true)
 object IrreduciblesTest {
 
   def main(args: Array[String]): Unit = {

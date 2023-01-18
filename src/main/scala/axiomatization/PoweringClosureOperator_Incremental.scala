@@ -21,6 +21,7 @@ import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
 import scala.jdk.CollectionConverters.*
 
+@Deprecated(forRemoval = true)
 class PoweringClosureOperator_Incremental(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
 
   //    val reductionPar = new scala.collection.parallel.mutable.ParArray[OWLIndividual](reduction.nodes.toArray)

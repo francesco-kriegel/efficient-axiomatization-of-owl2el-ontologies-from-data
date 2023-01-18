@@ -13,6 +13,8 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.jdk.StreamConverters.*
 
+import de.tu_dresden.inf.lat.parallel.NestedParallelComputations._
+
 object Interpretation {
 
   def fromOntology(ontology: OWLOntology): BitGraph[OWLClass, OWLObjectProperty] = {
@@ -93,7 +95,7 @@ object Interpretation {
 
   }
 
-  @Deprecated
+  @Deprecated(forRemoval = true)
   def maximalSimulationOn(graph: BitGraph[OWLClass, OWLObjectProperty])(using logger: Logger): BitBiMap = {
 
     logger.reset()
@@ -213,6 +215,7 @@ object Interpretation {
 
   }
 
+  @Deprecated(forRemoval = true)
   def reductionOf(graph: BitGraph[OWLClass, OWLObjectProperty])(using logger: Logger):
   (BitGraph[OWLClass, OWLObjectProperty], Int => mutable.BitSet, Int => Int, BitBiMap) = {
 
@@ -296,6 +299,76 @@ object Interpretation {
         })
       }
     }
+    logger.reset()
+
+    (reduction, representativeOf, representedBy, simulationOnReduction)
+
+  }
+
+  def reductionOf2(graph: BitGraph[OWLClass, OWLObjectProperty])(using logger: Logger):
+  (BitGraph[OWLClass, OWLObjectProperty], Int => mutable.BitSet, Int => Int, ConcurrentArrayBitBiMap) = {
+
+    val simulation = GraphSimulator.computeMaximalSimulation3(graph, graph)
+
+    logger.println("Computing equivalence classes...")
+
+    val equivalenceClasses = mutable.ListBuffer[mutable.BitSet]()
+    val remainingNodes = mutable.BitSet()
+    remainingNodes.addAll(graph.nodes())
+    while (remainingNodes.nonEmpty) {
+      logger.tick()
+      val representative = remainingNodes.head
+      val equivalenceClass = simulation.row(representative).viewAsMutableBitSet intersect simulation.col(representative).viewAsMutableBitSet
+      equivalenceClasses.addOne(equivalenceClass)
+      remainingNodes --= equivalenceClass
+    }
+    logger.reset()
+
+    logger.println(equivalenceClasses.size + " equivalence classes")
+
+    logger.println("Computing reduction...")
+
+    val index = mutable.HashMap[mutable.BitSet, Int]()
+    val representedBy = new Array[Int](graph.nodes().size)
+    val representativeOf = new Array[mutable.BitSet](equivalenceClasses.size)
+    var i = 0
+    equivalenceClasses.foreach(xs => {
+      index(xs) = i
+      xs.foreach(representedBy(_) = i)
+      representativeOf(i) = xs
+      i += 1
+    })
+    val reduction = BitGraph[OWLClass, OWLObjectProperty]()
+    val simulationOnReduction = ConcurrentArrayBitBiMap(i, i)
+    reduction.nodes().addAll(0 until i)
+    reduction.labels().addAll(graph.labels())
+    reduction.relations().addAll(graph.relations())
+    equivalenceClasses.foreachPar(xs => {
+      logger.tick()
+      val i = index(xs)
+      val x = xs.head
+      val labels = graph.labels(x)
+      if (labels.nonEmpty)
+        reduction._labelsByNode.synchronized {
+          reduction.addLabels(i, labels)
+        }
+      equivalenceClasses.foreach(ys => {
+        val j = index(ys)
+        val y = ys.head
+        if (simulation(x, y)) {
+          simulationOnReduction.add(i, j)
+        }
+        graph.successorRelations(x).foreach(r => {
+          val successors = graph.successorsForRelation(x, r)
+          val sir = successors intersect simulation.row(y).viewAsMutableBitSet
+          if (sir.nonEmpty && (sir diff simulation.col(y).viewAsMutableBitSet).isEmpty) {
+            reduction.synchronized {
+              reduction.addEdge(i, r, j)
+            }
+          }
+        })
+      })
+    })
     logger.reset()
 
     (reduction, representativeOf, representedBy, simulationOnReduction)

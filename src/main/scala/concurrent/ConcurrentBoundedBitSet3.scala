@@ -1,6 +1,10 @@
 package de.tu_dresden.inf.lat
 package concurrent
 
+/**
+ * @deprecated I do not know how to properly instantiate the var handle in pure Scala.
+ */
+@Deprecated(forRemoval = true)
 class ConcurrentBoundedBitSet3(maxElem: Int) {
 
   @volatile var array = new Array[Long]((maxElem >> 6) + 1)

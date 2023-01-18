@@ -2,7 +2,7 @@ package de.tu_dresden.inf.lat
 package concurrent
 
 //* A bitset for elements that are integers between 0 and maxElem */
-@Deprecated
+@Deprecated(forRemoval = true)
 class ConcurrentBoundedBitSet(maxElem: Int) {
 
   private val atomicArray = AtomicLongArray((maxElem >> 6) + 1)

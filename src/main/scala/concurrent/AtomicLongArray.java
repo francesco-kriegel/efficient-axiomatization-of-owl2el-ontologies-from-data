@@ -46,7 +46,9 @@ import java.util.function.LongUnaryOperator;
  * properties of atomic accesses.
  * @since 1.5
  * @author Doug Lea
+ * @deprecated This class is a copy of the Java class with the same name, but the visibility of the array field is changed.  It is meanwhile not used anymore.
  */
+@Deprecated(forRemoval = true)
 public class AtomicLongArray implements java.io.Serializable {
     private static final long serialVersionUID = -2308431214976778248L;
     private static final VarHandle AA

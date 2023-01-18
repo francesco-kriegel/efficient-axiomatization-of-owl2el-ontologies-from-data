@@ -21,7 +21,7 @@ import scala.jdk.CollectionConverters.*
 import scala.jdk.StreamConverters.*
 import scala.util.control.Breaks.*
 
-@Deprecated
+@Deprecated(forRemoval = true)
 class PoweringClosureOperator2_CachedValues(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
 
   given logger: Logger = NoLogger()

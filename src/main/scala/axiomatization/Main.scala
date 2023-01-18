@@ -34,7 +34,7 @@ object Main {
         println("Role depth bound: " + maxRoleDepth.map(_.toString).orElse(Some("none")).get)
         println("Maximal conjunction size: " + maxConjunctionSize.map(_.toString).orElse(Some("none")).get)
 //        println("Minimal premise extent size: " + maybeMinPremiseExtentSize.map(_.toString).orElse(Some("none")).get)
-        Axiomatization.run(ontologyFile, ont, disjointnessAxioms, maxConjunctionSize, maxRoleDepth)
+        Axiomatization2.run(ontologyFile, ont, disjointnessAxioms, maxConjunctionSize, maxRoleDepth)
 
       } else {
 
@@ -53,7 +53,7 @@ object Main {
           else ConsoleLogger()
         val maxRoleDepth = args(4).toIntOption
         val maxConjunctionSize = args(5).toIntOption
-        Axiomatization.run(ontologyFile, ont, disjointnessAxioms, maxConjunctionSize, maxRoleDepth, onlyComputeReduction)
+        Axiomatization2.run(ontologyFile, ont, disjointnessAxioms, maxConjunctionSize, maxRoleDepth, onlyComputeReduction)
 
       }
 

@@ -1,5 +1,6 @@
 package scala.collection.parallel
 
+@Deprecated(forRemoval = true)
 class ParBitSet(bs: collection.BitSet) extends scala.collection.parallel.ParSet[Int] {
 
   def seq: collection.BitSet = bs

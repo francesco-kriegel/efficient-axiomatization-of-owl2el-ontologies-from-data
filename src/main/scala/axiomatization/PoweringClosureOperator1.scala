@@ -21,8 +21,8 @@ import scala.jdk.CollectionConverters.*
 import scala.jdk.StreamConverters.*
 import scala.util.control.Breaks.*
 
-@Deprecated
-class PoweringClosureOperator3(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
+@Deprecated(forRemoval = true)
+class PoweringClosureOperator1(val reduction: BitGraph[OWLClass, OWLObjectProperty]) extends Function[collection.BitSet, collection.BitSet] {
 
   given logger: Logger = NoLogger()
 

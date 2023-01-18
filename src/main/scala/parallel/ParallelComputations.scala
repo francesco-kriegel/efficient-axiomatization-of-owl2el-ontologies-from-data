@@ -3,7 +3,11 @@ package parallel
 
 import java.util.concurrent.ThreadPoolExecutor
 
-object ParallelComputation {
+/**
+ * @deprecated Use NestedParallelComputations instead.
+ */
+@Deprecated(forRemoval = true)
+object ParallelComputations {
 
   private val threadPoolExecutor: ThreadPoolExecutor =
     java.util.concurrent.ThreadPoolExecutor(
@@ -19,6 +23,11 @@ object ParallelComputation {
     )
 
   implicit class IterableWithForeachPar[T](iterable: scala.collection.Iterable[T]) {
+    /**
+     * Apply f to each element in parallel for its side effects.
+     * Note: [U] parameter needed to help scalac's type inference.  This method must not be nested as otherwise
+     * computation could be stalled.
+     */
     inline def foreachPar[U](f: T => U): Unit = {
       iterable.map(t => scala.concurrent.Future(f(t)))
         .foreach(scala.concurrent.Await.ready(_, scala.concurrent.duration.Duration.Inf))
