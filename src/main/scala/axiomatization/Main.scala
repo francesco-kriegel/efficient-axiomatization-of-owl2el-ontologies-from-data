@@ -5,6 +5,7 @@ import java.io.File
 import scala.annotation.tailrec
 import scala.io.StdIn.readLine
 
+
 object Main {
 
   def main(args: Array[String]): Unit = {

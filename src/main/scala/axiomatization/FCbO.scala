@@ -1,13 +1,13 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import axiomatization.NestedParallelComputations.*
+import axiomatization.Util.{printExecutionTime, writeExecutionTime}
+
 import scala.collection.mutable
-//import scala.jdk.CollectionConverters.*
-import collection.parallel.CollectionConverters.*
-import util.control.Breaks.*
-import de.tu_dresden.inf.lat.axiomatization.Util.{printExecutionTime, writeExecutionTime}
-import NestedParallelComputations._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.control.Breaks.*
+
 
 object FCbOPar {
 

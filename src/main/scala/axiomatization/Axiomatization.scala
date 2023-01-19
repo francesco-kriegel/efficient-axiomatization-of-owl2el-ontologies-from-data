@@ -1,29 +1,30 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
+import axiomatization.Graph
+import axiomatization.NestedParallelComputations.*
+import axiomatization.Util.{LocalSet, fixedPoint, formatTime, intersectionOfBitSets, measureExecutionTime}
+
 import org.phenoscape.scowl.*
+import org.semanticweb.elk.owlapi.ElkReasonerFactory
 import org.semanticweb.owlapi.apibinding.OWLManager
+import org.semanticweb.owlapi.formats.ManchesterSyntaxDocumentFormat
+import org.semanticweb.owlapi.model.*
 import org.semanticweb.owlapi.model.parameters.Imports
-import org.semanticweb.owlapi.model.{IRI, NodeID, OWLAnonymousIndividual, OWLClass, OWLClassExpression, OWLDocumentFormat, OWLIndividual, OWLLogicalAxiom, OWLNamedIndividual, OWLObjectProperty, OWLObjectSomeValuesFrom}
 import uk.ac.manchester.cs.owl.owlapi.{OWLAnonymousIndividualImpl, OWLNamedIndividualImpl}
 
-import java.io.{BufferedReader, BufferedWriter, File, FileOutputStream, FileReader, FileWriter}
+import java.io.*
 import java.text.SimpleDateFormat
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.{AtomicInteger, AtomicReference}
 import scala.annotation.tailrec
 import scala.collection.immutable.BitSet
 import scala.collection.mutable
-import scala.io.StdIn.readLine
-import scala.jdk.StreamConverters.*
-import util.control.Breaks.*
-import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
+import scala.io.StdIn.readLine
 import scala.jdk.CollectionConverters.*
-import de.tu_dresden.inf.lat.axiomatization.Graph
-import de.tu_dresden.inf.lat.axiomatization.Util.{LocalSet, fixedPoint, formatTime, intersectionOfBitSets, measureExecutionTime}
-import org.semanticweb.elk.owlapi.ElkReasonerFactory
-import org.semanticweb.owlapi.formats.ManchesterSyntaxDocumentFormat
+import scala.jdk.StreamConverters.*
+import scala.util.control.Breaks.*
 
 
 class ObjectSomeValuesFromMMSC(val property: OWLObjectProperty, val mmsc: collection.BitSet) {}
@@ -34,7 +35,6 @@ object ObjectSomeValuesFromMMSC {
   }
 }
 
-//type M = OWLClass | (OWLObjectProperty, collection.BitSet)
 type M = OWLClass | ObjectSomeValuesFromMMSC
 type Mx = M | OWLObjectSomeValuesFrom
 type BitImplication = (collection.BitSet, collection.BitSet)
@@ -570,7 +570,7 @@ object Axiomatization {
 
     logger.println("Building powering simulator cache...")
     val cachedPoweringSimulator = collection.concurrent.TrieMap[collection.BitSet, collection.BitSet]()
-    closureToGeneratorMap.par.foreach((closure, generator) => {
+    closureToGeneratorMap.foreachPar((closure, generator) => {
       cachedPoweringSimulator(closure) = poweringSimulator(generator)
       logger.tick()
     })
@@ -613,8 +613,6 @@ object Axiomatization {
     if (withDisjointnessAxioms)
       _backgroundImplications.add(BitSet(0) -> BitSet.fromSpecific(1 until extendedAttributeSet.length))
       logger.tick()
-
-    import NestedParallelComputations._
 
     extendedAttributeSet.foreachPar({
       case pair1 @ ObjectSomeValuesFromMMSC(property1, mmsc1) => {

@@ -1,17 +1,16 @@
-
 package de.tu_dresden.inf.lat
 package axiomatization
 
+import axiomatization.NestedParallelComputations.*
+import axiomatization.Util.*
+
 import com.google.common.collect.Sets
 
-import collection.JavaConverters.*
-import scala.util.Random
-import collection.parallel.CollectionConverters.SetIsParallelizable
 import scala.annotation.tailrec
-//import collection.parallel.CollectionConverters.IterableIsParallelizable
+import scala.collection.JavaConverters.*
 import scala.collection.mutable
+import scala.util.Random
 
-import de.tu_dresden.inf.lat.axiomatization.Util._
 
 object HSdagBits {
 
@@ -111,11 +110,11 @@ private class HSdagBitsPar(F: Iterator[collection.BitSet]) {
     }
 
     def ancestors(): collection.Set[Node] = {
-      predecessors.keySet ++ predecessors.keySet.par.flatMap(_.ancestors())
+      predecessors.keySet ++ predecessors.keySet.flatMap(_.ancestors())
     }
 
     def descendants(): collection.Set[Node] = {
-      successors.keySet ++ successors.keySet.par.flatMap(_.descendants())
+      successors.keySet ++ successors.keySet.flatMap(_.descendants())
     }
 
   }
@@ -160,8 +159,8 @@ private class HSdagBitsPar(F: Iterator[collection.BitSet]) {
   @tailrec
   private def expand(nodes: collection.Set[Node]): Unit = {
     val nextLevel = Sets.newConcurrentHashSet[Node]().asScala
-    nodes.par.foreach(node ⇒ {
-      if (activeNodes().par.exists(activeNode ⇒ activeNode.isLeaf() && (activeNode.H strictSubsetOf node.H))) {
+    nodes.foreachPar(node ⇒ {
+      if (activeNodes().exists(activeNode ⇒ activeNode.isLeaf() && (activeNode.H strictSubsetOf node.H))) {
         node.label = new ClosedNode()
       } else {
         node.label =
@@ -169,9 +168,9 @@ private class HSdagBitsPar(F: Iterator[collection.BitSet]) {
             .map(hyperedge ⇒ { pruneWith(hyperedge); new HyperedgeNode(hyperedge) })
             .getOrElse(new LeafNode())
         node.hyperedge().foreach(hyperedge ⇒ {
-          hyperedge.par.foreach(edgeLabel ⇒ {
+          hyperedge.foreach(edgeLabel ⇒ {
             val successor =
-              activeNodes().par.find(activeNode ⇒ activeNode.H equals (node.H + edgeLabel))
+              activeNodes().find(activeNode ⇒ activeNode.H equals (node.H + edgeLabel))
                 .getOrElse(new Node(new NewNode(), node.H + edgeLabel))
             addEdge(node, edgeLabel, successor)
             if (successor.isNew())
@@ -185,7 +184,7 @@ private class HSdagBitsPar(F: Iterator[collection.BitSet]) {
   }
 
   private def pruneWith(hyperedge: collection.BitSet): Unit = {
-    activeNodes().par.foreach(activeNode ⇒ {
+    activeNodes().foreachPar(activeNode ⇒ {
       activeNode.label match {
         case HyperedgeNode(otherHyperedge) ⇒ {
           if (hyperedge strictSubsetOf otherHyperedge) {
@@ -203,7 +202,7 @@ private class HSdagBitsPar(F: Iterator[collection.BitSet]) {
               moreProbablyToBeRemoved.retain(node ⇒ node.predecessors.keySet subsetOf probablyToBeRemoved)
               moreProbablyToBeRemoved
             }, _ equals _)(possiblyToBeRemoved)
-            certainlyToBeRemoved.par.foreach(node ⇒ removeNode(node))
+            certainlyToBeRemoved.foreach(node ⇒ removeNode(node))
             ignoreHyperedge(otherHyperedge)
           }
         }

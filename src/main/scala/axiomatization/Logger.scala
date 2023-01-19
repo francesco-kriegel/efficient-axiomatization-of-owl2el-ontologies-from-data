@@ -3,6 +3,7 @@ package axiomatization
 
 import java.util.concurrent.atomic.{AtomicInteger, AtomicLong}
 
+
 trait Logger {
   @inline def print(obj: Any): Unit
   @inline def println(obj: Any): Unit

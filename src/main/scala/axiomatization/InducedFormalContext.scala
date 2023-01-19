@@ -1,17 +1,16 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
-import org.phenoscape.scowl.*
+import axiomatization.Util.intersectionOfBitSets
 
-import java.io.{BufferedWriter, File, FileWriter}
+import org.phenoscape.scowl.*
 import org.semanticweb.owlapi.model.{OWLClass, OWLObjectProperty}
 
+import java.io.{BufferedWriter, File, FileWriter}
+import scala.annotation.threadUnsafe
 import scala.collection.immutable.BitSet
 import scala.collection.mutable
-import Util.intersectionOfBitSets
-import scala.collection.parallel.CollectionConverters._
 
-import scala.annotation.threadUnsafe
 
 class InducedFormalContext(reduction: BitGraph[OWLClass, OWLObjectProperty],
                            isIndividual: Int => Boolean = _ => true,

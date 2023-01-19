@@ -1,11 +1,11 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
-import collection.parallel.CollectionConverters.*
 import org.phenoscape.scowl.*
 
 import scala.annotation.tailrec
 import scala.jdk.StreamConverters.*
+
 
 object Evaluation {
 
@@ -657,7 +657,7 @@ object Evaluation {
               (uppers.size < 2) || !clop(uppers).contains(node)
             }
 
-            val irreducibles = graph.nodes().par.filter(isIrreducible)
+            val irreducibles = graph.nodes().filter(isIrreducible)
 
             val ratio = (irreducibles.size.toFloat / size.toFloat) * 100f
 

@@ -1,7 +1,6 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
-import collection.parallel.CollectionConverters.*
 
 @Deprecated(forRemoval = true)
 object IrreduciblesTest {

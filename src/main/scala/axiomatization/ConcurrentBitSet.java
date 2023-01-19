@@ -1,5 +1,6 @@
 package de.tu_dresden.inf.lat.axiomatization;
 
+
 public class ConcurrentBitSet {
 
     private static final java.lang.invoke.VarHandle handle = java.lang.invoke.MethodHandles.arrayElementVarHandle(long[].class);

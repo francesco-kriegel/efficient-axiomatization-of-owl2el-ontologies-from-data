@@ -1,9 +1,8 @@
-
 package de.tu_dresden.inf.lat
 package axiomatization
 
 import scala.collection.mutable
-import scala.collection.parallel.CollectionConverters.*
+
 
 object Util {
 

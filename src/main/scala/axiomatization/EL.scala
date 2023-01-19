@@ -8,6 +8,7 @@ import org.semanticweb.owlapi.model.{OWLClassExpression, OWLLogicalAxiom, OWLOnt
 import scala.annotation.tailrec
 import scala.jdk.StreamConverters.*
 
+
 object EL {
 
   def extractELTBox(ontology: OWLOntology, excludePremisesNotInEL: Boolean = true, includeOWLNothing: Boolean = false): LazyList[OWLLogicalAxiom] = {
@@ -22,7 +23,7 @@ object EL {
         case ObjectPropertyDomain(_, property@ObjectProperty(_), classExpression) =>
           ObjectPropertyDomain(property, getELSubExpression(classExpression, includeOWLNothing))
         //        SubClassOf(ObjectSomeValuesFrom(property, OWLThing), getELSubExpression(classExpression))
-        case EquivalentClasses(_, classExpressions) if classExpressions.filter(isEL(_, includeOWLNothing)).size > 1 =>
+        case EquivalentClasses(_, classExpressions) if classExpressions.count(isEL(_, includeOWLNothing)) > 1 =>
           EquivalentClasses(classExpressions.filter(isEL(_, includeOWLNothing)))
       })
 

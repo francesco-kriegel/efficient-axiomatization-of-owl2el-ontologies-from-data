@@ -15,12 +15,12 @@ import scala.annotation.tailrec
 import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.collection.mutable.ArraySeq
-import scala.collection.parallel.CollectionConverters.*
 import scala.io.StdIn.readLine
 import scala.jdk.CollectionConverters.*
 import scala.jdk.StreamConverters.*
 import scala.util.control.Breaks
 import scala.util.control.Breaks.*
+
 
 class PoweringClosureOperator(graph: BitGraph[OWLClass, OWLObjectProperty],
                               knownSimulation: Option[ConcurrentArrayBitBiMap] = None,

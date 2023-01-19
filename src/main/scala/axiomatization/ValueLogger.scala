@@ -4,6 +4,7 @@ package axiomatization
 import java.io.{BufferedWriter, FileWriter}
 import java.util.concurrent.ConcurrentLinkedQueue
 
+
 trait ValueLogger() {
   def logValue(obj: Any): Unit
   def close(): Unit

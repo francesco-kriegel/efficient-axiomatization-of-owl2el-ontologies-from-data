@@ -1,6 +1,7 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
+import axiomatization.InducedFormalContext
 import axiomatization.Util.measureExecutionTime
 
 import org.semanticweb.owlapi.model.{OWLClass, OWLObjectProperty, OWLObjectSomeValuesFrom}
@@ -9,9 +10,8 @@ import java.io.{BufferedReader, File, FileReader}
 import scala.collection.immutable.BitSet
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import de.tu_dresden.inf.lat.axiomatization.InducedFormalContext
-
 import scala.util.control.Breaks.{break, breakable}
+
 
 object LinCbO {
 

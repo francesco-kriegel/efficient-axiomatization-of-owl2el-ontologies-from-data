@@ -1,26 +1,22 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
-import org.phenoscape.scowl.*
-import org.semanticweb.owlapi.model.{OWLClass, OWLIndividual, OWLObjectProperty, OWLOntology}
+import axiomatization.NestedParallelComputations.*
 
-import scala.collection.BitSet.fromSpecific
-import scala.collection.{IterableOps, StrictOptimizedIterableOps, mutable}
-import scala.collection.mutable.ListBuffer
-import scala.jdk.StreamConverters.*
-import scala.jdk.CollectionConverters.*
-import collection.parallel.CollectionConverters.*
-import java.io.File
 import org.phenoscape.scowl.*
 import org.semanticweb.owlapi.apibinding.OWLManager
+import org.semanticweb.owlapi.model.*
 import org.semanticweb.owlapi.model.parameters.Imports
-import org.semanticweb.owlapi.model.{NodeID, OWLAnonymousIndividual, OWLClass, OWLClassExpression, OWLIndividual, OWLObjectProperty, OWLOntology}
 import uk.ac.manchester.cs.owl.owlapi.OWLAnonymousIndividualImpl
 
+import java.io.File
 import scala.annotation.tailrec
-import scala.collection.mutable
+import scala.collection.BitSet.fromSpecific
+import scala.collection.mutable.ListBuffer
+import scala.collection.{IterableOps, StrictOptimizedIterableOps, mutable}
+import scala.jdk.CollectionConverters.*
 import scala.jdk.StreamConverters.*
-import NestedParallelComputations.*
+
 
 class BitGraph[L, R]() extends Graph[Int, L, R, mutable.BitSet](() => mutable.BitSet()) {
 
@@ -143,7 +139,6 @@ object GraphSimulator {
    * @return the largest simulation from the source to the target
    */
   def computeMaximalSimulation[L, R](source: BitGraph[L, R], target: BitGraph[L, R])(using logger: Logger): ConcurrentArrayBitBiMap = {
-    import NestedParallelComputations.*
     val nodesThatHaveACommonPredecessorWith = new scala.Array[collection.BitSet](source.nodes().size)
     source.nodes().foreachPar(node => {
       val predecessors = collection.mutable.BitSet()
@@ -169,7 +164,6 @@ object GraphSimulator {
    * @return the largest simulation from the source to the target
    */
   def computeMaximalSimulation[L, R](source: HashGraph[collection.BitSet, L, R], target: BitGraph[L, R])(using logger: Logger): ConcurrentBitSetToIntRelation = {
-    import NestedParallelComputations.*
     val nodesThatHaveACommonPredecessorWith = java.util.concurrent.ConcurrentHashMap[collection.BitSet, collection.mutable.HashSet[collection.BitSet]]().asScala
     source.nodes().foreachPar(node => {
       val predecessors = collection.mutable.HashSet[collection.BitSet]()
@@ -201,8 +195,6 @@ object GraphSimulator {
     G <: Graph[N, L, R, SetN],
     S <: ConcurrentToIntRelation[N]]
   (source: G, target: BitGraph[L, R], nodesThatHaveACommonPredecessorWith: N => collection.Set[N], newSimulation: () => S, removeFromColumn: (S, N, Int) => Unit)(using logger: Logger): S = {
-
-    import NestedParallelComputations.*
 
     logger.reset()
     logger.println("Computing pre-simulation...")
