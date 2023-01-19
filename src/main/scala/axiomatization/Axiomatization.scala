@@ -20,7 +20,7 @@ import util.control.Breaks.*
 import collection.parallel.CollectionConverters.*
 import scala.collection.mutable.ArraySeq
 import scala.jdk.CollectionConverters.*
-import de.tu_dresden.inf.lat.axiomatization.Interpretation
+import de.tu_dresden.inf.lat.axiomatization.Graph
 import de.tu_dresden.inf.lat.axiomatization.Util.{LocalSet, fixedPoint, formatTime, intersectionOfBitSets, measureExecutionTime}
 import org.semanticweb.elk.owlapi.ElkReasonerFactory
 import org.semanticweb.owlapi.formats.ManchesterSyntaxDocumentFormat
@@ -97,7 +97,7 @@ object Axiomatization {
 
     val manager = OWLManager.createOWLOntologyManager()
     val ontology = manager.loadOntologyFromOntologyDocument(if reductionHasBeenPrecomputed then reducedOntologyFile else ontologyFile)
-    val graph = Interpretation.fromOntology(ontology)
+    val graph = BitGraph.fromOntology(ontology)
     val elbotTBox =
       if reductionHasBeenPrecomputed
       then ontology.tboxAxioms(Imports.INCLUDED).toScala(LazyList).toList
@@ -127,7 +127,7 @@ object Axiomatization {
     val ((reduction, _, _, _), measurement_ComputationTime_FirstReduction) =
       if reductionHasBeenPrecomputed
       then ((graph, PartialFunction.empty, PartialFunction.empty, BitBiMap()), statisticsFromFile(3).toLong)
-      else measureExecutionTime { Interpretation.computeReduction(graph) }
+      else measureExecutionTime { BitGraph.computeReduction(graph) }
     logger.println("Reducing the input interpretation took " + formatTime(measurement_ComputationTime_FirstReduction))
 
     val measurement_Number_ObjectsInReducedDomain =
@@ -231,7 +231,7 @@ object Axiomatization {
 
 
 
-    var (reducedCanonicalModel, _rcmRepresentedBy, _rcmRepresentativeOf, simulationOnRCM) = Interpretation.computeReduction(elk.canonicalModel)
+    var (reducedCanonicalModel, _rcmRepresentedBy, _rcmRepresentativeOf, simulationOnRCM) = BitGraph.computeReduction(elk.canonicalModel)
     val n = reducedCanonicalModel.nodes().size
     val measurement_Number_ObjectsInReducedCanonicalModel = n
 
@@ -517,7 +517,7 @@ object Axiomatization {
     val fillersInConclusions = existentialRestrictionsInConclusions.map({ case ObjectSomeValuesFrom(_, filler) => filler })
     elk.insertIntoCanonicalModel(fillersInConclusions)
 
-    val (reducedCanonicalModel2, _rcmRepresentedBy2, _rcmRepresentativeOf2, _) = Interpretation.computeReduction(elk.canonicalModel)
+    val (reducedCanonicalModel2, _rcmRepresentedBy2, _rcmRepresentativeOf2, _) = BitGraph.computeReduction(elk.canonicalModel)
 
     def rcmRepresentedBy2(i: Int): collection.Set[Int | OWLClassExpression] = {
       _rcmRepresentedBy2(i).unsorted.map(elk.withNumber)
@@ -614,7 +614,7 @@ object Axiomatization {
       _backgroundImplications.add(BitSet(0) -> BitSet.fromSpecific(1 until extendedAttributeSet.length))
       logger.tick()
 
-    import de.tu_dresden.inf.lat.parallel.NestedParallelComputations._
+    import NestedParallelComputations._
 
     extendedAttributeSet.foreachPar({
       case pair1 @ ObjectSomeValuesFromMMSC(property1, mmsc1) => {

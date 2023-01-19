@@ -220,7 +220,7 @@ object Evaluation {
       val owlFileInputOntology = java.io.File(inputOntologiesFolder, "ore_ont_" + ont + ".owl")
       val owlManager = org.semanticweb.owlapi.apibinding.OWLManager.createOWLOntologyManager()
       val owlOntologyInputOntology = owlManager.loadOntologyFromOntologyDocument(owlFileInputOntology)
-      val graph = Interpretation.fromOntology(owlOntologyInputOntology)
+      val graph = BitGraph.fromOntology(owlOntologyInputOntology)
 
       val Number_ObjectsInDomain = graph.nodes().size
       val Flag_Acyclic = hasAcyclicABox(graph)
@@ -336,7 +336,7 @@ object Evaluation {
           val owlFileReduction = java.io.File(reductionsFolder, "ore_ont_" + ont + "_reduced.owl")
           val owlManager = org.semanticweb.owlapi.apibinding.OWLManager.createOWLOntologyManager()
           val owlOntologyReduction = owlManager.loadOntologyFromOntologyDocument(owlFileReduction)
-          val graph = Interpretation.fromOntology(owlOntologyReduction)
+          val graph = BitGraph.fromOntology(owlOntologyReduction)
 
           if (!(graph.nodes().size equals Number_ObjectsInReducedDomain))
             throw new RuntimeException()
@@ -609,7 +609,7 @@ object Evaluation {
       if (ReducedOreOntologyRegex matches file.getName) {
 
         val ontology = org.semanticweb.owlapi.apibinding.OWLManager.createOWLOntologyManager().loadOntologyFromOntologyDocument(file)
-        val graph = Interpretation.fromOntology(ontology)
+        val graph = BitGraph.fromOntology(ontology)
         val size = graph.nodes().size
 
         val ont = ReducedOreOntologyRegex.findFirstMatchIn(file.getName).get.group(1).toInt

@@ -78,7 +78,7 @@ object IrreduciblesTest {
 
       val ont = ReducedOreOntologyOWL.findFirstMatchIn(file.getName).get.group(1).toInt
       val ontology = org.semanticweb.owlapi.apibinding.OWLManager.createOWLOntologyManager().loadOntologyFromOntologyDocument(file)
-      val graph = Interpretation.fromOntology(ontology)
+      val graph = BitGraph.fromOntology(ontology)
       val size = graph.nodes().size
 
       println(f"Ontology: ${file.getName}")

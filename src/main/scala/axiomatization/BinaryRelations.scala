@@ -1,7 +1,7 @@
 package de.tu_dresden.inf.lat
 package axiomatization
 
-import de.tu_dresden.inf.lat.concurrent.ConcurrentBoundedBitSet
+import de.tu_dresden.inf.lat.axiomatization
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.immutable.BitSet
@@ -27,7 +27,7 @@ class ConcurrentBitSetToIntRelation(maxY: Int) extends ConcurrentToIntRelation[c
   private val bits = java.util.concurrent.ConcurrentHashMap[collection.BitSet, ConcurrentBoundedBitSet]().asScala
 
   def add(xs: collection.BitSet, y: Int): Unit =
-    bits.getOrElseUpdate(xs, concurrent.ConcurrentBoundedBitSet(maxY)).add(y)
+    bits.getOrElseUpdate(xs, axiomatization.ConcurrentBoundedBitSet(maxY)).add(y)
 
   def remove(xs: collection.BitSet, y: Int): Unit =
     if (bits.contains(xs)) bits(xs).remove(y)
@@ -40,7 +40,7 @@ class ConcurrentBitSetToIntRelation(maxY: Int) extends ConcurrentToIntRelation[c
 
   def row(xs: collection.BitSet): ConcurrentBoundedBitSet =
     // bits(xs)
-    bits.getOrElseUpdate(xs, concurrent.ConcurrentBoundedBitSet(maxY))
+    bits.getOrElseUpdate(xs, axiomatization.ConcurrentBoundedBitSet(maxY))
 
 }
 
@@ -415,8 +415,8 @@ class ConcurrentArrayBitBiMap(rows: Int, cols: Int) extends ConcurrentToIntRelat
 
   private val rowArray = new scala.Array[ConcurrentBoundedBitSet](rows)
   private val colArray = new scala.Array[ConcurrentBoundedBitSet](cols)
-  (0 until rows).foreach(i => rowArray(i) = concurrent.ConcurrentBoundedBitSet(cols - 1))
-  (0 until cols).foreach(j => colArray(j) = concurrent.ConcurrentBoundedBitSet(rows - 1))
+  (0 until rows).foreach(i => rowArray(i) = axiomatization.ConcurrentBoundedBitSet(cols - 1))
+  (0 until cols).foreach(j => colArray(j) = axiomatization.ConcurrentBoundedBitSet(rows - 1))
 
   def add(x: Int, y: Int): Unit = {
     rowArray(x).add(y)
@@ -454,7 +454,7 @@ class ConcurrentBitMap[T](maxY: Int) {
   val rowMap = java.util.concurrent.ConcurrentHashMap[T, ConcurrentBoundedBitSet]().asScala
 
   def add(x: T, y: Int): Unit = {
-    rowMap.getOrElseUpdate(x, concurrent.ConcurrentBoundedBitSet(maxY)).add(y)
+    rowMap.getOrElseUpdate(x, axiomatization.ConcurrentBoundedBitSet(maxY)).add(y)
 //    rowMap.computeIfAbsent(x, _ => concurrent.ConcurrentBoundedBitSet2(maxY)).add(y)
   }
 
@@ -500,7 +500,7 @@ class ConcurrentBitBiMap(maxX: Int, maxY: Int) extends ConcurrentBitMap[Int](max
 
   override def add(x: Int, y: Int): Unit = {
     super.add(x, y)
-    colMap.getOrElseUpdate(y, concurrent.ConcurrentBoundedBitSet(maxX)).add(x)
+    colMap.getOrElseUpdate(y, axiomatization.ConcurrentBoundedBitSet(maxX)).add(x)
   }
 
   override def remove(x: Int, y: Int): Unit = {

@@ -1,20 +1,9 @@
-package de.tu_dresden.inf.lat.concurrent;
+package de.tu_dresden.inf.lat.axiomatization;
 
 public class ConcurrentBoundedBitSet {
 
-//    public static final java.lang.invoke.VarHandle varHandleArray;
-//
-//    static {
-//        try {
-//            varHandleArray = java.lang.invoke.MethodHandles.lookup().findVarHandle(ConcurrentBitSetJava.class, "array", long[].class);
-//        } catch (ReflectiveOperationException e) {
-//            throw new ExceptionInInitializerError(e);
-//        }
-//    }
-
-    public static final java.lang.invoke.VarHandle handle = java.lang.invoke.MethodHandles.arrayElementVarHandle(long[].class);
-
-    protected final long[] array;
+    private static final java.lang.invoke.VarHandle handle = java.lang.invoke.MethodHandles.arrayElementVarHandle(long[].class);
+    private final long[] array;
     private final int maxElem;
 
     public ConcurrentBoundedBitSet(int maxElem) {

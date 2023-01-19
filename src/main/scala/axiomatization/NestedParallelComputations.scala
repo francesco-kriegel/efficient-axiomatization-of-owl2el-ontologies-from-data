@@ -1,5 +1,5 @@
 package de.tu_dresden.inf.lat
-package parallel
+package axiomatization
 
 object NestedParallelComputations {
 

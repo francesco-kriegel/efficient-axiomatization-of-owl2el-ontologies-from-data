@@ -7,7 +7,7 @@ import scala.collection.mutable
 import collection.parallel.CollectionConverters.*
 import util.control.Breaks.*
 import de.tu_dresden.inf.lat.axiomatization.Util.{printExecutionTime, writeExecutionTime}
-import de.tu_dresden.inf.lat.parallel.NestedParallelComputations._
+import NestedParallelComputations._
 
 object FCbOPar {
 
