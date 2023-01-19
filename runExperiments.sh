@@ -1955,7 +1955,7 @@ for key in "${ontologies[@]}"; do
 
       time="8h"
       echo -n "[$(date +"%T")] Computing reduction (timeout: ${time})... "
-      output=$(timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -XX:+ExitOnOutOfMemoryError -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id None onlyComputeReduction quiet)
+      output=$(timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -XX:+ExitOnOutOfMemoryError -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.2.0-SNAPSHOT.jar $id None onlyComputeReduction quiet)
       exitStatus=$?
       if [[ "${output}" == *"OutOfMemory"* ]]; then exitStatus=3; fi
       case $exitStatus in
@@ -1985,7 +1985,7 @@ for key in "${ontologies[@]}"; do
 
         time="1h"
         echo -n "[$(date +"%T")] Computing experiment with no disjointness axioms (timeout: ${time})... "
-        output=$(timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -XX:+ExitOnOutOfMemoryError -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id None computeEverything quiet)
+        output=$(timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -XX:+ExitOnOutOfMemoryError -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.2.0-SNAPSHOT.jar $id None computeEverything quiet)
         exitStatus=$?
         if [[ "${output}" == *"OutOfMemory"* ]]; then exitStatus=3; fi
         case $exitStatus in
@@ -2015,7 +2015,7 @@ for key in "${ontologies[@]}"; do
 
           time="2h"
           echo -n "[$(date +"%T")] Computing experiment with fast disjointness axioms (timeout: ${time})... "
-          output=$(timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -XX:+ExitOnOutOfMemoryError -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id Fast computeEverything quiet)
+          output=$(timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -XX:+ExitOnOutOfMemoryError -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.2.0-SNAPSHOT.jar $id Fast computeEverything quiet)
           exitStatus=$?
           if [[ "${output}" == *"OutOfMemory"* ]]; then exitStatus=3; fi
           case $exitStatus in
@@ -2044,7 +2044,7 @@ for key in "${ontologies[@]}"; do
           then
 
             echo -n "[$(date +"%T")] Computing experiment with canonical disjointness axioms (timeout: ${time})... "
-            output=$(timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -XX:+ExitOnOutOfMemoryError -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.1.0-SNAPSHOT.jar $id Canonical computeEverything quiet)
+            output=$(timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -XX:+ExitOnOutOfMemoryError -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.2.0-SNAPSHOT.jar $id Canonical computeEverything quiet)
             exitStatus=$?
             if [[ "${output}" == *"OutOfMemory"* ]]; then exitStatus=3; fi
             case $exitStatus in
