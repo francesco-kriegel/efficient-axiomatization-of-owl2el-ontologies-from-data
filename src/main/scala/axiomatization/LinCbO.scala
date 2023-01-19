@@ -103,7 +103,6 @@ object LinCbO {
 
 }
 
-// TODO: Check if background implications with empty premise are treated correctly
 object LinCbOWithBackgroundImplications {
 
   def computeCanonicalBase(cxt: InducedFormalContext,
@@ -211,7 +210,6 @@ object LinCbOWithBackgroundImplications {
       }
     }
 
-//    Step(mutable.BitSet.empty, -1, mutable.BitSet.empty, counts.toArray)
     Step(first, -1, first, counts.toArray)
 
     logger.println()
@@ -221,5 +219,3 @@ object LinCbOWithBackgroundImplications {
   }
 
 }
-
-
