@@ -786,9 +786,9 @@ object Axiomatization {
 
     val (cbaseBack, measurement_ComputationTime_RelativeCanonicalBase) = measureExecutionTime {
       if (withDisjointnessAxioms)
-        LinCbOWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length)
+        LinCbOWithPruningWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length)
       else // TODO: inclusion ideal could also check if at least n objects satisfy the premise (or a percentage of all objects), and/or if the premise contains at most k attributes
-        LinCbOWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length,
+        LinCbOWithPruningWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length,
           if maxConjunctionSize.isEmpty
           then ms => cxt.commonObjects(ms intersect cxt.bitsActiveAttributes).nonEmpty
           else ms => (ms.size <= maxConjunctionSize.get) && cxt.commonObjects(ms intersect cxt.bitsActiveAttributes).nonEmpty)
@@ -841,7 +841,9 @@ object Axiomatization {
 
     logger.println()
     logger.println("Dataset ............................................................. " + ont)
-    logger.println("Disjointness Axioms: ................................................ " + whichDisjointnessAxioms)
+    logger.println("Disjointness axioms ................................................. " + whichDisjointnessAxioms)
+    logger.println("Maximal role depth .................................................. " + maxRoleDepth)
+    logger.println("Maximal conjunction size ............................................ " + maxConjunctionSize)
     logger.println("Total computation time .............................................. " + formatTime(measurement_ComputationTime_Total))
     logger.println("Time for loading ontology ........................................... " + formatTime(measurement_ComputationTime_LoadOntology))
     logger.println("Time for first reduction ............................................ " + formatTime(measurement_ComputationTime_FirstReduction))
@@ -864,8 +866,8 @@ object Axiomatization {
     //    logger.println("Number of implications in final base ................................ " + measurement_Number_ImplicationsInFinalBase)
     //    logger.println("  among which are no fast disjointness axiom (LinCbO/Scala) ......... " + measurement_Number_ImplicationsInCanonicalBase)
     //    logger.println("  among which are no fast disjointness axiom (LinCbO/C++) ........... " + measurement_Number_ImplicationsInCanonicalBaseJKK)
-    logger.println("  among which are fast disjointness axioms .......................... " + measurement_Number_FastDisjointnessAxioms)
     logger.println("Number of implications in final relative base ....................... " + measurement_Number_ImplicationsInFinalRelativeBase)
+    logger.println("  among which are fast disjointness axioms .......................... " + measurement_Number_FastDisjointnessAxioms)
     logger.println("  among which are no fast disjointness axiom (BLinCbO/Scala) ........ " + measurement_Number_ImplicationsInRelativeCanonicalBase)
     logger.println()
     logger.println()

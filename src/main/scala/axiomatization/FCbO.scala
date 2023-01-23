@@ -6,6 +6,7 @@ import axiomatization.Util.{printExecutionTime, writeExecutionTime}
 
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.jdk.CollectionConverters.*
 import scala.util.control.Breaks.*
 
 
@@ -17,9 +18,10 @@ object FCbOPar {
                         (using logger: Logger)
   : mutable.Map[collection.BitSet, collection.BitSet] = {
 
-    val closures = collection.concurrent.TrieMap[collection.BitSet, collection.BitSet]()
+    //val closures = collection.concurrent.TrieMap[collection.BitSet, collection.BitSet]()
+    val closures = java.util.concurrent.ConcurrentHashMap[collection.BitSet, collection.BitSet]().asScala
 
-    def FCbOPar(xs: collection.BitSet, i: Int, ns: Array[collection.BitSet], nsMin: Int): Unit = {
+    def Step(xs: collection.BitSet, i: Int, ns: Array[collection.BitSet], nsMin: Int): Unit = {
       
       val n_i = n - i
       val queue = new scala.Array[collection.BitSet](n_i)
@@ -47,11 +49,11 @@ object FCbOPar {
       (i until n).foreach { j =>
         val ys = queue(j - i)
         if (ys != null)
-          FCbOPar(ys, j + 1, ms, i)
+          Step(ys, j + 1, ms, i)
       }
     }
 
-    FCbOPar(collection.BitSet.empty, 0, Array.fill(n)(collection.BitSet.empty), 0)
+    Step(collection.BitSet.empty, 0, Array.fill(n)(collection.BitSet.empty), 0)
 
     logger.println()
 
