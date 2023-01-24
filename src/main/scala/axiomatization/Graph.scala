@@ -173,7 +173,7 @@ object GraphSimulator {
     })
     computeMaximalSimulation[collection.BitSet, L, R, collection.mutable.HashSet[collection.BitSet], HashGraph[collection.BitSet, L, R], ConcurrentBitSetToIntRelation](
       source, target, nodesThatHaveACommonPredecessorWith,
-      () => ConcurrentBitSetToIntRelation(target.nodes().max),
+      () => ConcurrentBitSetToIntRelation(if target.nodes().isEmpty then 0 else target.nodes().max),
       (_, _, _) => {})
   }
 
