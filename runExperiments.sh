@@ -1968,7 +1968,7 @@ function runPrototype {
 }
 
 function runPrototypeAtMostTwice {
-  if [[ $1 -eq "Reduction" ]]; then
+  if [[ $1 == "Reduction" ]]; then
     echo -n "[$(date +"%T")] Computing reduction (timeout: ${time})... "
     arg1="None"
     arg2="onlyComputeReduction"
@@ -2004,22 +2004,8 @@ function runPrototypeAtMostTwice {
       ;;
   esac
   if [[ ${exitStatus} -ne 0 ]]; then echo "$output"; fi
-  if [[ $4 -ne 0 ]]; then
-    case $exitStatus in
-      0) # successful computation
-        ;;
-      124|137) # Timeout
-        ;;
-      3) # Out of memory
-        ;;
-      4) # Inconsistent
-        ;;
-      5) # Powering too large
-        ;;
-      *) # other error
-        runPrototypeAtMostTwice $1 $2 $3 "0"
-        ;;
-    esac
+  if [[ $4 -ne 0 ]] && [[ ${exitStatus} -ne 0 ]] && [[ ${exitStatus} -ne 124 ]] && [[ ${exitStatus} -ne 137 ]] && [[ ${exitStatus} -ne 3 ]] && [[ ${exitStatus} -ne 4 ]] && [[ ${exitStatus} -ne 5 ]]; then
+    runPrototypeAtMostTwice $1 $2 $3 "0"
   fi
 }
 
@@ -2036,36 +2022,78 @@ for key in "${ontologies[@]}"; do
       id=${key//ore_ont_/}
 
       runPrototype "Reduction" "INF" "INF"
+      reducedDomainSize=$(cut -d';' -f2 < "ore2015_pool_sample_experiments/statistics/${key}.csv")
+      echo "           ${reducedDomainSize} objects in the reduction"
 
-      if [[ ${exitStatus} -eq 0 ]] && [[ -f "ore2015_pool_sample_experiments/files/${key}_reduced.owl" ]] && [[ $(cut -d';' -f2 < "ore2015_pool_sample_experiments/statistics/${key}.csv") -ge 10 ]]; then
+      if [[ ${exitStatus} -eq 0 ]] && [[ -f "ore2015_pool_sample_experiments/files/${key}_reduced.owl" ]] && [[ ${reducedDomainSize} -ge 10 ]]; then
+
+        exitStatus_None_1_32=999
+        exitStatus_Fast_1_32=999
+        exitStatus_Canonical_1_32=999
+        exitStatus_None_2_32=999
+        exitStatus_Fast_2_32=999
+        exitStatus_Canonical_2_32=999
+        exitStatus_None_INF_32=999
+        exitStatus_Fast_INF_32=999
+        exitStatus_Canonical_INF_32=999
+        exitStatus_None_INF_INF=999
+        exitStatus_Fast_INF_INF=999
 
         runPrototype "None" "1" "32"
-        if [[ ${exitStatus} -eq 0 ]]; then
+        exitStatus_None_1_32=${exitStatus}
+
+        if [[ ${exitStatus_None_1_32} -eq 0 ]]; then
           runPrototype "Fast" "1" "32"
-          if [[ ${exitStatus} -eq 0 ]]; then
-            runPrototype "Canonical" "1" "32"
-          fi
+          exitStatus_Fast_1_32=${exitStatus}
+        fi
+
+        if [[ ${exitStatus_Fast_1_32} -eq 0 ]]; then
+          runPrototype "Canonical" "1" "32"
+          exitStatus_Canonical_1_32=${exitStatus}
+        fi
+
+        if [[ ${exitStatus_None_1_32} -eq 0 ]]; then
           runPrototype "None" "2" "32"
-          if [[ ${exitStatus} -eq 0 ]]; then
-            runPrototype "Fast" "2" "32"
-            if [[ ${exitStatus} -eq 0 ]]; then
-              runPrototype "Canonical" "2" "32"
-            fi
-            runPrototype "None" "INF" "32"
-            if [[ ${exitStatus} -eq 0 ]]; then
-              runPrototype "Fast" "INF" "32"
-              if [[ ${exitStatus} -eq 0 ]]; then
-                runPrototype "Canonical" "INF" "32"
-              fi
-              runPrototype "None" "INF" "INF"
-              if [[ ${exitStatus} -eq 0 ]]; then
-                runPrototype "Fast" "INF" "INF"
-                if [[ ${exitStatus} -eq 0 ]]; then
-                  runPrototype "Canonical" "INF" "INF"
-                fi
-              fi
-            fi
-          fi
+          exitStatus_None_2_32=${exitStatus}
+        fi
+
+        if [[ ${exitStatus_None_2_32} -eq 0]] && [[ ${exitStatus_Fast_1_32} -eq 0 ]]; then
+          runPrototype "Fast" "2" "32"
+          exitStatus_Fast_2_32=${exitStatus}
+        fi
+
+        if [[ ${exitStatus_Fast_2_32} -eq 0]] && [[ ${exitStatus_Canonical_1_32} -eq 0 ]]; then
+          runPrototype "Canonical" "2" "32"
+          exitStatus_Canonical_2_32=${exitStatus}
+        fi
+
+        if [[ ${exitStatus_None_2_32} -eq 0 ]]; then
+          runPrototype "None" "INF" "32"
+          exitStatus_None_INF_32=${exitStatus}
+        fi
+
+        if [[ ${exitStatus_None_INF_32} -eq 0]] && [[ ${exitStatus_Fast_2_32} -eq 0 ]]; then
+          runPrototype "Fast" "INF" "32"
+          exitStatus_Fast_INF_32=${exitStatus}
+        fi
+
+        if [[ ${exitStatus_Fast_INF_32} -eq 0]] && [[ ${exitStatus_Canonical_2_32} -eq 0 ]]; then
+          runPrototype "Canonical" "INF" "32"
+          exitStatus_Canonical_INF_32=${exitStatus}
+        fi
+
+        if [[ ${exitStatus_None_INF_32} -eq 0 ]]; then
+          runPrototype "None" "INF" "INF"
+          exitStatus_None_INF_INF=${exitStatus}
+        fi
+
+        if [[ ${exitStatus_None_INF_INF} -eq 0]] && [[ ${exitStatus_Fast_INF_32} -eq 0 ]]; then
+          runPrototype "Fast" "INF" "INF"
+          exitStatus_Fast_INF_INF=${exitStatus}
+        fi
+
+        if [[ ${exitStatus_Fast_INF_INF} -eq 0]] && [[ ${exitStatus_Canonical_INF_32} -eq 0 ]]; then
+          runPrototype "Canonical" "INF" "INF"
         fi
 
       fi
