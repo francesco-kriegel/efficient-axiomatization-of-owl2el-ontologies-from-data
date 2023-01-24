@@ -2035,7 +2035,7 @@ for key in "${ontologies[@]}"; do
       echo "Processing $key with ${domainSize[$key]} objects..."
       id=${key//ore_ont_/}
 
-      runPrototype "Reduction" "" ""
+      runPrototype "Reduction" "INF" "INF"
 
       if [[ ${exitStatus} -eq 0 ]] && [[ -f "ore2015_pool_sample_experiments/files/${key}_reduced.owl" ]] && [[ $(cut -d';' -f2 < "ore2015_pool_sample_experiments/statistics/${key}.csv") -ge 10 ]]; then
 
