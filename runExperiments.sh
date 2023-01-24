@@ -2057,12 +2057,12 @@ for key in "${ontologies[@]}"; do
           exitStatus_None_2_32=${exitStatus}
         fi
 
-        if [[ ${exitStatus_None_2_32} -eq 0]] && [[ ${exitStatus_Fast_1_32} -eq 0 ]]; then
+        if [[ ${exitStatus_None_2_32} -eq 0 ]] && [[ ${exitStatus_Fast_1_32} -eq 0 ]]; then
           runPrototype "Fast" "2" "32"
           exitStatus_Fast_2_32=${exitStatus}
         fi
 
-        if [[ ${exitStatus_Fast_2_32} -eq 0]] && [[ ${exitStatus_Canonical_1_32} -eq 0 ]]; then
+        if [[ ${exitStatus_Fast_2_32} -eq 0 ]] && [[ ${exitStatus_Canonical_1_32} -eq 0 ]]; then
           runPrototype "Canonical" "2" "32"
           exitStatus_Canonical_2_32=${exitStatus}
         fi
@@ -2072,12 +2072,12 @@ for key in "${ontologies[@]}"; do
           exitStatus_None_INF_32=${exitStatus}
         fi
 
-        if [[ ${exitStatus_None_INF_32} -eq 0]] && [[ ${exitStatus_Fast_2_32} -eq 0 ]]; then
+        if [[ ${exitStatus_None_INF_32} -eq 0 ]] && [[ ${exitStatus_Fast_2_32} -eq 0 ]]; then
           runPrototype "Fast" "INF" "32"
           exitStatus_Fast_INF_32=${exitStatus}
         fi
 
-        if [[ ${exitStatus_Fast_INF_32} -eq 0]] && [[ ${exitStatus_Canonical_2_32} -eq 0 ]]; then
+        if [[ ${exitStatus_Fast_INF_32} -eq 0 ]] && [[ ${exitStatus_Canonical_2_32} -eq 0 ]]; then
           runPrototype "Canonical" "INF" "32"
           exitStatus_Canonical_INF_32=${exitStatus}
         fi
@@ -2087,12 +2087,12 @@ for key in "${ontologies[@]}"; do
           exitStatus_None_INF_INF=${exitStatus}
         fi
 
-        if [[ ${exitStatus_None_INF_INF} -eq 0]] && [[ ${exitStatus_Fast_INF_32} -eq 0 ]]; then
+        if [[ ${exitStatus_None_INF_INF} -eq 0 ]] && [[ ${exitStatus_Fast_INF_32} -eq 0 ]]; then
           runPrototype "Fast" "INF" "INF"
           exitStatus_Fast_INF_INF=${exitStatus}
         fi
 
-        if [[ ${exitStatus_Fast_INF_INF} -eq 0]] && [[ ${exitStatus_Canonical_INF_32} -eq 0 ]]; then
+        if [[ ${exitStatus_Fast_INF_INF} -eq 0 ]] && [[ ${exitStatus_Canonical_INF_32} -eq 0 ]]; then
           runPrototype "Canonical" "INF" "INF"
         fi
 
