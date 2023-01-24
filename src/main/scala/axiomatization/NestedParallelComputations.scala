@@ -14,15 +14,18 @@ object NestedParallelComputations {
      */
     inline def foreachPar[U](f: T => U): Unit = {
       val tasks =
-        iterable.map(t =>
+        iterable map { t =>
           new java.util.concurrent.RecursiveAction() {
             override protected def compute(): Unit = {
               f(t)
             }
           }
-        )
-      tasks.foreach(FORK_JOIN_POOL.execute)
-      tasks.foreach(_.quietlyJoin())
+        }
+      tasks foreach FORK_JOIN_POOL.execute
+      tasks foreach { t =>
+        t.quietlyJoin()
+        if t.getException != null then throw t.getException
+      }
     }
 
 //    private def par[U](f: T => U) : T => U = {

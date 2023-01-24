@@ -353,17 +353,18 @@ object Axiomatization {
             PoweringClosureOperator(
               reducedCanonicalModel,
               Some(simulationOnRCM),
-              if maxConjunctionSize.isDefined then maxConjunctionSize else Some(10000000),
+              if maxConjunctionSize.isDefined then maxConjunctionSize else Some(10),
               if maxConjunctionSize.isDefined then false else true,
               maxRoleDepth.map(_ - 1)
             ),
-            if withDisjointnessAxioms then _ => true else isOccupiedAttribute
+            if withDisjointnessAxioms then (_: collection.BitSet) => true else isOccupiedAttribute
           )
         } catch {
-          case _: IllegalArgumentException =>
+          case e: PoweringTooLargeException =>
             writeResults(ont + ";" + whichDisjointnessAxioms + ";PoweringTooLarge;;;;;;;;;;;;;;;;;;;;;;;;;")
+            System.err.println("\n\n" + e)
             System.exit(5)
-            mutable.HashMap.empty[collection.BitSet, collection.BitSet]
+            mutable.HashMap.empty[collection.BitSet, collection.BitSet] //only for type inference
         }
       }
     }
