@@ -1964,6 +1964,10 @@ echo "Script running with PID $$"
 # An ontology is processed if the reduction has at least ten objects.
 
 function runPrototype {
+  runPrototypeAtMostTwice $1 $2 $3 "1"
+}
+
+function runPrototypeAtMostTwice {
   if [[ $1 -eq "Reduction" ]]; then
     echo -n "[$(date +"%T")] Computing reduction (timeout: ${time})... "
     arg1="None"
@@ -2000,6 +2004,23 @@ function runPrototype {
       ;;
   esac
   if [[ ${exitStatus} -ne 0 ]]; then echo "$output"; fi
+  if [[ $4 -ne 0 ]]; then
+    case $exitStatus in
+      0) # successful computation
+        ;;
+      124|137) # Timeout
+        ;;
+      3) # Out of memory
+        ;;
+      4) # Inconsistent
+        ;;
+      5) # Powering too large
+        ;;
+      *) # other error
+        runPrototypeAtMostTwice $1 $2 $3 "0"
+        ;;
+    esac
+  fi
 }
 
 for key in "${ontologies[@]}"; do
