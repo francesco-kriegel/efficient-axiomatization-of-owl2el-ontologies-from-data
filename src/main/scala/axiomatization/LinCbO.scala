@@ -104,7 +104,7 @@ object LinCbO {
 
 }
 
-object LinCbOWithBackgroundImplications {
+object LinCbO_WithBackgroundImplications {
 
   def computeCanonicalBase(cxt: InducedFormalContext,
                            backgroundImplications: collection.Iterable[BitImplication],
@@ -220,8 +220,10 @@ object LinCbOWithBackgroundImplications {
   }
 
 }
-
-object LinCbOWithPruningWithBackgroundImplications {
+/**
+ * This version uses the LCM-inspired pruning.
+ */
+object LinCbO_WithPruning_WithBackgroundImplications {
 
   def computeCanonicalBase(cxt: InducedFormalContext,
                            backgroundImplications: collection.Iterable[BitImplication],
@@ -360,7 +362,7 @@ object LinCbOWithPruningWithBackgroundImplications {
  * @deprecated The above version without explicit tail recursion is faster, it needs only half of the computation time.
  */
 @Deprecated(forRemoval = true)
-object LinCbOWithBackgroundImplicationsTailRec {
+object LinCbO_WithBackgroundImplications_TailRec {
 
   def computeCanonicalBase(cxt: InducedFormalContext,
                            backgroundImplications: collection.Iterable[BitImplication],
@@ -487,10 +489,10 @@ object LinCbOWithBackgroundImplicationsTailRec {
 }
 
 /**
- * @deprecated This version computed an incomplete implication base.
+ * @deprecated This version computes an incomplete implication base.
  */
 @Deprecated(forRemoval = true)
-object LinCbOWithBackgroundImplicationsPar {
+object LinCbO_WithBackgroundImplications_Par {
 
   def computeCanonicalBase(cxt: InducedFormalContext,
                            backgroundImplications: collection.Iterable[BitImplication],
@@ -571,6 +573,9 @@ object LinCbOWithBackgroundImplicationsPar {
 
     import de.tu_dresden.inf.lat.axiomatization.NestedParallelComputations._
 
+    type SingleStep = (mutable.BitSet, Int, mutable.BitSet, Array[Int])
+    val nextSteps = java.util.concurrent.ConcurrentLinkedQueue[SingleStep]()
+
     def Step(current: mutable.BitSet, y: Int, added: mutable.BitSet, lastCounts: Array[Int]): Unit = {
       if (inclusionIdeal(current)) {
         val linCl = linClosure(current, y, added, lastCounts)
@@ -587,14 +592,14 @@ object LinCbOWithBackgroundImplicationsPar {
               // addPseudoIntent(psClosure, closure)
               addPseudoIntent(psClosure, diff)
               if (diff.min > y) {
-                Step(closure, y, diff, count)
+                nextSteps add (closure, y, diff, count)
               }
             } else {
-              ((m - 1) to (y + 1) by -1) foreachPar { i =>
+              ((m - 1) to (y + 1) by -1) foreach { i =>
                 if (!psClosure.contains(i)) {
                   val next = psClosure + i
                   val nDiff = mutable.BitSet(i)
-                  Step(next, i, nDiff, if (next.size == 1) counts.toArray else count)
+                  nextSteps add (next, i, nDiff, if (next.size == 1) counts.toArray else count)
                 }
               }
             }
@@ -603,7 +608,17 @@ object LinCbOWithBackgroundImplicationsPar {
       }
     }
 
-    Step(first, -1, first, counts.toArray)
+    nextSteps add (first, -1, first, counts.toArray)
+
+    while (!nextSteps.isEmpty) {
+      val futures = mutable.Queue[java.util.concurrent.RecursiveAction]()
+      while (!nextSteps.isEmpty) {
+        val nextStep = nextSteps.poll()
+        futures addOne { () => Step.tupled(nextStep) }
+      }
+      futures foreach { FORK_JOIN_POOL.execute }
+      futures foreach { _.quietlyJoin }
+    }
 
     logger.println()
 

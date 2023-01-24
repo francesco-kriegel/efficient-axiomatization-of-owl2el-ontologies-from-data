@@ -46,7 +46,7 @@ object NestedParallelComputations {
     inline def mapPar[U](f: T => U): CC[U] = {
       val tasks = scala.collection.mutable.HashMap[T, java.util.concurrent.RecursiveTask[U]]()
       iterable.foreach(t =>
-        tasks(t) = () => { f(t) }
+        tasks(t) = () => f(t)
       )
       tasks.values.foreach(FORK_JOIN_POOL.execute)
       iterable.map(t => tasks(t).join())
@@ -64,7 +64,7 @@ object NestedParallelComputations {
     inline def flatMapPar[U](f: T => IterableOnce[U]): CC[U] = {
       val tasks = scala.collection.mutable.HashMap[T, java.util.concurrent.RecursiveTask[IterableOnce[U]]]()
       iterable.foreach(t =>
-        tasks(t) = () => { f(t) }
+        tasks(t) = () => f(t)
       )
       tasks.values.foreach(FORK_JOIN_POOL.execute)
       iterable.flatMap(t => tasks(t).join())

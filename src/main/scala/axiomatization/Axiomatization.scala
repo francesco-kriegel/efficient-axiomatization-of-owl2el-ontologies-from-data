@@ -341,12 +341,30 @@ object Axiomatization {
       if (maxRoleDepth.isDefined && (maxRoleDepth.get equals 0))
         mutable.HashMap.empty[collection.BitSet, collection.BitSet]
       else {
-        if (withDisjointnessAxioms)
-          FCbOPar.computeAllClosures(n, PoweringClosureOperator(reducedCanonicalModel, Some(simulationOnRCM), maxConjunctionSize, false, maxRoleDepth.map(_ - 1)))
-            .subtractOne(reducedCanonicalModel.nodes())
-        else
-          FCbOPar.computeAllClosures(n, PoweringClosureOperator(reducedCanonicalModel, Some(simulationOnRCM), maxConjunctionSize, false, maxRoleDepth.map(_ - 1)), isOccupiedAttribute)
-            .subtractOne(reducedCanonicalModel.nodes())
+//        if (withDisjointnessAxioms)
+//          FCbOPar.computeAllClosures(n, PoweringClosureOperator(reducedCanonicalModel, Some(simulationOnRCM), maxConjunctionSize, false, maxRoleDepth.map(_ - 1)))
+//            //.subtractOne(reducedCanonicalModel.nodes())
+//        else
+//          FCbOPar.computeAllClosures(n, PoweringClosureOperator(reducedCanonicalModel, Some(simulationOnRCM), maxConjunctionSize, false, maxRoleDepth.map(_ - 1)), isOccupiedAttribute)
+//            //.subtractOne(reducedCanonicalModel.nodes())
+        try {
+          FCbOPar.computeAllClosures(
+            n,
+            PoweringClosureOperator(
+              reducedCanonicalModel,
+              Some(simulationOnRCM),
+              if maxConjunctionSize.isDefined then maxConjunctionSize else Some(10000000),
+              if maxConjunctionSize.isDefined then false else true,
+              maxRoleDepth.map(_ - 1)
+            ),
+            if withDisjointnessAxioms then _ => true else isOccupiedAttribute
+          )
+        } catch {
+          case _: IllegalArgumentException =>
+            writeResults(ont + ";" + whichDisjointnessAxioms + ";PoweringTooLarge;;;;;;;;;;;;;;;;;;;;;;;;;")
+            System.exit(5)
+            mutable.HashMap.empty[collection.BitSet, collection.BitSet]
+        }
       }
     }
     //    valueLogger.close()
@@ -786,9 +804,9 @@ object Axiomatization {
 
     val (cbaseBack, measurement_ComputationTime_RelativeCanonicalBase) = measureExecutionTime {
       if (withDisjointnessAxioms)
-        LinCbOWithPruningWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length)
+        LinCbO_WithPruning_WithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length)
       else // TODO: inclusion ideal could also check if at least n objects satisfy the premise (or a percentage of all objects), and/or if the premise contains at most k attributes
-        LinCbOWithPruningWithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length,
+        LinCbO_WithPruning_WithBackgroundImplications.computeCanonicalBase(cxt, backgroundImplications, extendedAttributeSet.length,
           if maxConjunctionSize.isEmpty
           then ms => cxt.commonObjects(ms intersect cxt.bitsActiveAttributes).nonEmpty
           else ms => (ms.size <= maxConjunctionSize.get) && cxt.commonObjects(ms intersect cxt.bitsActiveAttributes).nonEmpty)
@@ -875,7 +893,7 @@ object Axiomatization {
 
     val csv =
       ont + ";" +
-        whichDisjointnessAxioms + ";" +
+        whichDisjointnessAxioms + "-" + maxRoleDepth.map(_.toString).getOrElse("INF") + "-" + maxConjunctionSize.map(_.toString).getOrElse("INF") + ";" +
         "Success" + ";" +
         measurement_ComputationTime_Total + ";" +
         measurement_ComputationTime_LoadOntology + ";" +
