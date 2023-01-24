@@ -225,7 +225,7 @@ object Axiomatization {
     val elk = ELK(reduction, elTBox, manager)
 
     if (!elk.reasoner.isConsistent) {
-      writeResults(ont + ";" + whichDisjointnessAxioms + ";Inconsistent;;;;;;;;;;;;;;;;;;;;;;;;;")
+      writeResults(ont + ";" + whichDisjointnessAxioms + "-" + maxRoleDepth.map(_.toString).getOrElse("INF") + "-" + maxConjunctionSize.map(_.toString).getOrElse("INF") + ";Inconsistent;;;;;;;;;;;;;;;;;;;;;;;;;")
       System.exit(4)
     }
 
@@ -353,7 +353,7 @@ object Axiomatization {
             PoweringClosureOperator(
               reducedCanonicalModel,
               Some(simulationOnRCM),
-              if maxConjunctionSize.isDefined then maxConjunctionSize else Some(10),
+              if maxConjunctionSize.isDefined then maxConjunctionSize else Some(10000000),
               if maxConjunctionSize.isDefined then false else true,
               maxRoleDepth.map(_ - 1)
             ),
@@ -361,7 +361,7 @@ object Axiomatization {
           )
         } catch {
           case e: PoweringTooLargeException =>
-            writeResults(ont + ";" + whichDisjointnessAxioms + ";PoweringTooLarge;;;;;;;;;;;;;;;;;;;;;;;;;")
+            writeResults(ont + ";" + whichDisjointnessAxioms + "-" + maxRoleDepth.map(_.toString).getOrElse("INF") + "-" + maxConjunctionSize.map(_.toString).getOrElse("INF") + ";PoweringTooLarge;;;;;;;;;;;;;;;;;;;;;;;;;")
             System.err.println("\n\n" + e)
             System.exit(5)
             mutable.HashMap.empty[collection.BitSet, collection.BitSet] //only for type inference

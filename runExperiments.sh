@@ -1982,11 +1982,11 @@ function runPrototype {
       ;;
     124|137) # Timeout
       echo -e "${Yellow}Timeout${Reset}"
-      echo "${key};$1;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+      echo "${key};$1-$2-$3;Timeout(${time});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
       ;;
     3) # Out of memory
       echo -e "${Orange}Out of memory${Reset}"
-      echo "${key};$1;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+      echo "${key};$1-$2-$3;OutOfMemory(80g);;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
       ;;
     4) # Inconsistent
       echo -e "${Cyan}Inconsistent${Reset}"
@@ -1996,7 +1996,7 @@ function runPrototype {
       ;;
     *) # other error
       echo -e "${Red}Error ${exitStatus}${Reset}"
-      echo "${key};$1;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
+      echo "${key};$1-$2-$3;Error(${exitStatus});;;;;;;;;;;;;;;;;;;;;;;;;" >> "ore2015_pool_sample_experiments/results/${key}.csv"
       ;;
   esac
   if [[ ${exitStatus} -ne 0 ]]; then echo "$output"; fi

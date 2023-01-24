@@ -302,50 +302,48 @@ object LinCbO_WithPruning_WithBackgroundImplications {
     }
 
     def Step(current: mutable.BitSet, y: Int, added: mutable.BitSet, lastCounts: Array[Int]): Int = {
-//      if (inclusionIdeal(current)) {
-        val stackSize = pruningStack.size
-        var result = -1
-        val (psClosure, count, fail) = linClosure(current, y, added, lastCounts)
-        if (fail > -1) {
-          result = fail
-        } else {
-          val left = psClosure intersect cxt.bitsActiveAttributes
-          val right = psClosure intersect bitsAdditionalAttributes
-          val closure = cxt.closure(left) union right
-          if (inclusionIdeal(closure)) {
-            val diff = closure diff psClosure
-            if (diff.nonEmpty) {
-              // addPseudoIntent(psClosure, closure)
-              addPseudoIntent(psClosure, diff)
-              val firstBit = diff.min
-              if (firstBit > y)
-                result = Step(closure, y, diff, count)
-              else
-                result = firstBit
-            } else {
-              for (i <- (m - 1) to (y + 1) by -1) {
-                if (!(psClosure contains i)) {
-                  val next = psClosure + i
-                  val nDiff = mutable.BitSet(i)
-                  if (pruningData(i) == -1 || (next contains pruningData(i))) {
-                    result = Step(next, i, nDiff, if next.size == 1 then counts.toArray else count)
-                    if (result > -1 && result < i) {
-                      pruningStack.push(i)
-                      pruningData(i) = result
-                    }
+      val stackSize = pruningStack.size
+      var result = -1
+      val (psClosure, count, fail) = linClosure(current, y, added, lastCounts)
+      if (fail > -1) {
+        result = fail
+      } else {
+        val left = psClosure intersect cxt.bitsActiveAttributes
+        val right = psClosure intersect bitsAdditionalAttributes
+        val closure = cxt.closure(left) union right
+        if (inclusionIdeal(closure)) {
+          val diff = closure diff psClosure
+          if (diff.nonEmpty) {
+            // addPseudoIntent(psClosure, closure)
+            addPseudoIntent(psClosure, diff)
+            val firstBit = diff.min
+            if (firstBit > y)
+              result = Step(closure, y, diff, count)
+            else
+              result = firstBit
+          } else {
+            for (i <- (m - 1) to (y + 1) by -1) {
+              if (!(psClosure contains i)) {
+                val next = psClosure + i
+                val nDiff = mutable.BitSet(i)
+                if (pruningData(i) == -1 || (next contains pruningData(i))) {
+                  result = Step(next, i, nDiff, if next.size == 1 then counts.toArray else count)
+                  if (result > -1 && result < i) {
+                    pruningStack.push(i)
+                    pruningData(i) = result
                   }
                 }
               }
-              result = -1
             }
-          }
-          while (pruningStack.size > stackSize) {
-            val i = pruningStack.pop()
-            pruningData(i) = -1
+            result = -1
           }
         }
+        while (pruningStack.size > stackSize) {
+          val i = pruningStack.pop()
+          pruningData(i) = -1
+        }
+      }
       result
-//      }
     }
 
     Step(first, -1, first, counts.toArray)

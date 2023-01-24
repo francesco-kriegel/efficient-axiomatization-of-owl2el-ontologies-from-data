@@ -14,26 +14,35 @@ import scala.util.Random
 
 object HSdagBits {
 
-  def allMinimalHittingSets(hypergraph: collection.Set[collection.BitSet], parallel: Boolean = false): collection.Set[collection.BitSet] = {
-    allMinimalHittingSets(hypergraph.iterator, parallel)
+  def allMinimalHittingSets(hypergraph: collection.Set[collection.BitSet]): collection.Set[collection.BitSet] = {
+    allMinimalHittingSets(hypergraph.iterator)
   }
 
-  def allMinimalHittingSets(hypergraph: Iterator[collection.BitSet], parallel: Boolean): collection.Set[collection.BitSet] = {
-    if (parallel)
-      val hstree = new HSdagBitsPar(hypergraph)
-      hstree.populate()
-      hstree.allMinimalHittingSets()
-    else
-      val hstree = new HSdagBitsSeq(hypergraph)
-      hstree.populate()
-      hstree.allMinimalHittingSets()
+  def allMinimalHittingSets(hypergraph: Iterator[collection.BitSet]): collection.Set[collection.BitSet] = {
+    val hstree = new HSdagBits(hypergraph)
+    hstree.populate()
+    hstree.allMinimalHittingSets()
   }
 
 }
 
-private class HSdagBitsPar(F: Iterator[collection.BitSet]) {
+object HSdagBitsPar {
 
-  private val seenHyperedges = new collection.mutable.HashSet[collection.BitSet]
+  def allMinimalHittingSets(n: Int, hypergraph: collection.Set[collection.BitSet]): collection.Set[collection.BitSet] = {
+    allMinimalHittingSets(n, hypergraph.iterator)
+  }
+
+  def allMinimalHittingSets(n: Int, hypergraph: Iterator[collection.BitSet]): collection.Set[collection.BitSet] = {
+    val hstree = new HSdagBitsPar(n, hypergraph)
+    hstree.populate()
+    hstree.allMinimalHittingSets()
+  }
+
+}
+
+private class HSdagBitsPar(n: Int, F: Iterator[collection.BitSet]) {
+
+  private val seenHyperedges = java.util.concurrent.ConcurrentHashMap.newKeySet[collection.BitSet].asScala
 
   private def hasNextHyperedge(): Boolean = {
     F.hasNext
@@ -45,7 +54,7 @@ private class HSdagBitsPar(F: Iterator[collection.BitSet]) {
     nextHyperedge
   }
 
-  private def findHyperedge(condition: collection.BitSet ⇒ Boolean): Option[collection.BitSet] = {
+  private def findHyperedge(condition: collection.BitSet => Boolean): Option[collection.BitSet] = {
     def scanF(): Option[collection.BitSet] = {
       if (hasNextHyperedge()) {
         val nextHyperedge = getNextHyperedge()
@@ -76,45 +85,43 @@ private class HSdagBitsPar(F: Iterator[collection.BitSet]) {
                       var label: Label,
                       val H:     collection.BitSet) {
 
-    val predecessors =
-      new mutable.HashMap[Node, mutable.BitSet] //with mutable.MultiMap[Node, Int]
-    val successors =
-      new mutable.HashMap[Node, mutable.BitSet] //with mutable.MultiMap[Node, Int]
+    val predecessors = ConcurrentBitMap[Node](n)
+    val successors = ConcurrentBitMap[Node](n)
 
     def isNew(): Boolean = {
       label match {
-        case NewNode() ⇒ true
-        case default   ⇒ false
+        case NewNode() => true
+        case default   => false
       }
     }
 
     def isLeaf(): Boolean = {
       label match {
-        case LeafNode() ⇒ true
-        case default    ⇒ false
+        case LeafNode() => true
+        case default    => false
       }
     }
 
     def isClosed(): Boolean = {
       label match {
-        case ClosedNode() ⇒ true
-        case default      ⇒ false
+        case ClosedNode() => true
+        case default      => false
       }
     }
 
     def hyperedge(): Option[collection.BitSet] = {
       label match {
-        case HyperedgeNode(hyperedge) ⇒ Some(hyperedge)
-        case default                  ⇒ None
+        case HyperedgeNode(hyperedge) => Some(hyperedge)
+        case default                  => None
       }
     }
 
     def ancestors(): collection.Set[Node] = {
-      predecessors.keySet ++ predecessors.keySet.flatMap(_.ancestors())
+      predecessors.rowMap.keySet ++ predecessors.rowMap.keySet.flatMap(_.ancestors())
     }
 
     def descendants(): collection.Set[Node] = {
-      successors.keySet ++ successors.keySet.flatMap(_.descendants())
+      successors.rowMap.keySet ++ successors.rowMap.keySet.flatMap(_.descendants())
     }
 
   }
@@ -122,26 +129,25 @@ private class HSdagBitsPar(F: Iterator[collection.BitSet]) {
   private val rootNode: Node = new Node(new NewNode(), scala.collection.immutable.BitSet.empty)
 
   private def addEdge(source: Node, edgeLabel: Int, target: Node): Unit = {
-    source.successors.synchronized {
-      source.successors.addBinding(target, edgeLabel)
-    }
-    target.predecessors.synchronized {
-      target.predecessors.addBinding(source, edgeLabel)
-    }
+    source.successors.add(target, edgeLabel)
+    target.predecessors.add(source, edgeLabel)
   }
 
   private def removeEdge(source: Node, edgeLabel: Int, target: Node): Unit = {
-    source.successors.synchronized {
-      source.successors.removeBinding(target, edgeLabel)
-    }
-    target.predecessors.synchronized {
-      target.predecessors.removeBinding(source, edgeLabel)
-    }
+    source.successors.remove(target, edgeLabel)
+    target.predecessors.remove(source, edgeLabel)
   }
 
   private def removeNode(node: Node): Unit = {
-    node.predecessors.foreachBinding((predecessor, edgeLabel) ⇒ removeEdge(predecessor, edgeLabel, node))
-    node.successors.foreachBinding((successor, edgeLabel) ⇒ removeEdge(node, edgeLabel, successor))
+    node.predecessors.rowMap foreach { (pred, edgeLabels) =>
+      edgeLabels.viewAsImmutableBitSet foreach { pred.successors.remove(node, _) }
+    }
+    node.predecessors.rowMap.clear()
+
+    node.successors.rowMap foreach { (succ, edgeLabels) =>
+      edgeLabels.viewAsImmutableBitSet foreach { succ.predecessors.remove(node, _) }
+    }
+    node.successors.rowMap.clear()
   }
 
   private def activeNodes(): collection.Set[Node] = {
@@ -158,19 +164,19 @@ private class HSdagBitsPar(F: Iterator[collection.BitSet]) {
 
   @tailrec
   private def expand(nodes: collection.Set[Node]): Unit = {
-    val nextLevel = Sets.newConcurrentHashSet[Node]().asScala
-    nodes.foreachPar(node ⇒ {
-      if (activeNodes().exists(activeNode ⇒ activeNode.isLeaf() && (activeNode.H strictSubsetOf node.H))) {
+    val nextLevel = java.util.concurrent.ConcurrentHashMap.newKeySet[Node].asScala
+    nodes.foreachPar(node => {
+      if (activeNodes().exists(activeNode => activeNode.isLeaf() && (activeNode.H strictSubsetOf node.H))) {
         node.label = new ClosedNode()
       } else {
         node.label =
-          findHyperedge(hyperedge ⇒ (hyperedge intersect node.H).isEmpty)
-            .map(hyperedge ⇒ { pruneWith(hyperedge); new HyperedgeNode(hyperedge) })
+          findHyperedge(hyperedge => (hyperedge intersect node.H).isEmpty)
+            .map(hyperedge => { pruneWith(hyperedge); new HyperedgeNode(hyperedge) })
             .getOrElse(new LeafNode())
-        node.hyperedge().foreach(hyperedge ⇒ {
-          hyperedge.foreach(edgeLabel ⇒ {
+        node.hyperedge().foreach(hyperedge => {
+          hyperedge.foreach(edgeLabel => {
             val successor =
-              activeNodes().find(activeNode ⇒ activeNode.H equals (node.H + edgeLabel))
+              activeNodes().find(activeNode => activeNode.H equals (node.H + edgeLabel))
                 .getOrElse(new Node(new NewNode(), node.H + edgeLabel))
             addEdge(node, edgeLabel, successor)
             if (successor.isNew())
@@ -184,36 +190,38 @@ private class HSdagBitsPar(F: Iterator[collection.BitSet]) {
   }
 
   private def pruneWith(hyperedge: collection.BitSet): Unit = {
-    activeNodes().foreachPar(activeNode ⇒ {
+    activeNodes().foreachPar(activeNode => {
       activeNode.label match {
-        case HyperedgeNode(otherHyperedge) ⇒ {
+        case HyperedgeNode(otherHyperedge) => {
           if (hyperedge strictSubsetOf otherHyperedge) {
             activeNode.label = new HyperedgeNode(hyperedge)
             val possiblyToBeRemoved = new collection.mutable.HashSet[Node]
-            activeNode.successors.foreachBinding((successor, edgeLabel) ⇒ {
-              if ((otherHyperedge -- hyperedge) contains edgeLabel) {
-                removeEdge(activeNode, edgeLabel, successor)
-                possiblyToBeRemoved += successor
-                possiblyToBeRemoved ++= successor.descendants()
+            activeNode.successors.rowMap foreach { (successor, edgeLabels) =>
+              edgeLabels.viewAsImmutableBitSet foreach { edgeLabel =>
+                if ((otherHyperedge -- hyperedge) contains edgeLabel) {
+                  removeEdge(activeNode, edgeLabel, successor)
+                  possiblyToBeRemoved += successor
+                  possiblyToBeRemoved ++= successor.descendants()
+                }
               }
-            })
-            val certainlyToBeRemoved = fixedPoint[collection.mutable.HashSet[Node]](probablyToBeRemoved ⇒ {
+            }
+            val certainlyToBeRemoved = fixedPoint[collection.mutable.HashSet[Node]](probablyToBeRemoved => {
               val moreProbablyToBeRemoved = probablyToBeRemoved.clone
-              moreProbablyToBeRemoved.retain(node ⇒ node.predecessors.keySet subsetOf probablyToBeRemoved)
+              moreProbablyToBeRemoved.retain(node => node.predecessors.rowMap.keySet subsetOf probablyToBeRemoved)
               moreProbablyToBeRemoved
             }, _ equals _)(possiblyToBeRemoved)
-            certainlyToBeRemoved.foreach(node ⇒ removeNode(node))
+            certainlyToBeRemoved.foreach(node => removeNode(node))
             ignoreHyperedge(otherHyperedge)
           }
         }
-        case default ⇒ {}
+        case default => {}
       }
     })
   }
 
 }
 
-private class HSdagBitsSeq(F: Iterator[collection.BitSet]) {
+private class HSdagBits(F: Iterator[collection.BitSet]) {
 
   private val seenHyperedges = new collection.mutable.HashSet[collection.BitSet]
 
@@ -227,7 +235,7 @@ private class HSdagBitsSeq(F: Iterator[collection.BitSet]) {
     nextHyperedge
   }
 
-  private def findHyperedge(condition: collection.BitSet ⇒ Boolean): Option[collection.BitSet] = {
+  private def findHyperedge(condition: collection.BitSet => Boolean): Option[collection.BitSet] = {
     def scanF(): Option[collection.BitSet] = {
       if (hasNextHyperedge()) {
         val nextHyperedge = getNextHyperedge()
@@ -263,29 +271,29 @@ private class HSdagBitsSeq(F: Iterator[collection.BitSet]) {
 
     def isNew(): Boolean = {
       label match {
-        case NewNode() ⇒ true
-        case default   ⇒ false
+        case NewNode() => true
+        case default   => false
       }
     }
 
     def isLeaf(): Boolean = {
       label match {
-        case LeafNode() ⇒ true
-        case default    ⇒ false
+        case LeafNode() => true
+        case default    => false
       }
     }
 
     def isClosed(): Boolean = {
       label match {
-        case ClosedNode() ⇒ true
-        case default      ⇒ false
+        case ClosedNode() => true
+        case default      => false
       }
     }
 
     def hyperedge(): Option[collection.BitSet] = {
       label match {
-        case HyperedgeNode(hyperedge) ⇒ Some(hyperedge)
-        case default                  ⇒ None
+        case HyperedgeNode(hyperedge) => Some(hyperedge)
+        case default                  => None
       }
     }
 
@@ -312,8 +320,8 @@ private class HSdagBitsSeq(F: Iterator[collection.BitSet]) {
   }
 
   private def removeNode(node: Node): Unit = {
-    node.predecessors.foreachBinding((predecessor, edgeLabel) ⇒ removeEdge(predecessor, edgeLabel, node))
-    node.successors.foreachBinding((successor, edgeLabel) ⇒ removeEdge(node, edgeLabel, successor))
+    node.predecessors.foreachBinding((predecessor, edgeLabel) => removeEdge(predecessor, edgeLabel, node))
+    node.successors.foreachBinding((successor, edgeLabel) => removeEdge(node, edgeLabel, successor))
   }
 
   private def activeNodes(): collection.Set[Node] = {
@@ -331,18 +339,18 @@ private class HSdagBitsSeq(F: Iterator[collection.BitSet]) {
   @tailrec
   private def expand(nodes: collection.Set[Node]): Unit = {
     val nextLevel = Sets.newConcurrentHashSet[Node]().asScala
-    nodes.foreach(node ⇒ {
-      if (activeNodes().exists(activeNode ⇒ activeNode.isLeaf() && (activeNode.H strictSubsetOf node.H))) {
+    nodes.foreach(node => {
+      if (activeNodes().exists(activeNode => activeNode.isLeaf() && (activeNode.H strictSubsetOf node.H))) {
         node.label = new ClosedNode()
       } else {
         node.label =
-          findHyperedge(hyperedge ⇒ (hyperedge intersect node.H).isEmpty)
-            .map(hyperedge ⇒ { pruneWith(hyperedge); new HyperedgeNode(hyperedge) })
+          findHyperedge(hyperedge => (hyperedge intersect node.H).isEmpty)
+            .map(hyperedge => { pruneWith(hyperedge); new HyperedgeNode(hyperedge) })
             .getOrElse(new LeafNode())
-        node.hyperedge().foreach(hyperedge ⇒ {
-          hyperedge.foreach(edgeLabel ⇒ {
+        node.hyperedge().foreach(hyperedge => {
+          hyperedge.foreach(edgeLabel => {
             val successor =
-              activeNodes().find(activeNode ⇒ activeNode.H equals (node.H + edgeLabel))
+              activeNodes().find(activeNode => activeNode.H equals (node.H + edgeLabel))
                 .getOrElse(new Node(new NewNode(), node.H + edgeLabel))
             addEdge(node, edgeLabel, successor)
             if (successor.isNew())
@@ -356,29 +364,29 @@ private class HSdagBitsSeq(F: Iterator[collection.BitSet]) {
   }
 
   private def pruneWith(hyperedge: collection.BitSet): Unit = {
-    activeNodes().foreach(activeNode ⇒ {
+    activeNodes().foreach(activeNode => {
       activeNode.label match {
-        case HyperedgeNode(otherHyperedge) ⇒ {
+        case HyperedgeNode(otherHyperedge) => {
           if (hyperedge strictSubsetOf otherHyperedge) {
             activeNode.label = new HyperedgeNode(hyperedge)
             val possiblyToBeRemoved = new collection.mutable.HashSet[Node]
-            activeNode.successors.foreachBinding((successor, edgeLabel) ⇒ {
+            activeNode.successors.foreachBinding((successor, edgeLabel) => {
               if ((otherHyperedge -- hyperedge) contains edgeLabel) {
                 removeEdge(activeNode, edgeLabel, successor)
                 possiblyToBeRemoved += successor
                 possiblyToBeRemoved ++= successor.descendants()
               }
             })
-            val certainlyToBeRemoved = fixedPoint[collection.mutable.HashSet[Node]](probablyToBeRemoved ⇒ {
+            val certainlyToBeRemoved = fixedPoint[collection.mutable.HashSet[Node]](probablyToBeRemoved => {
               val moreProbablyToBeRemoved = probablyToBeRemoved.clone
-              moreProbablyToBeRemoved.retain(node ⇒ node.predecessors.keySet subsetOf probablyToBeRemoved)
+              moreProbablyToBeRemoved.retain(node => node.predecessors.keySet subsetOf probablyToBeRemoved)
               moreProbablyToBeRemoved
             }, _ equals _)(possiblyToBeRemoved)
-            certainlyToBeRemoved.foreach(node ⇒ removeNode(node))
+            certainlyToBeRemoved.foreach(node => removeNode(node))
             ignoreHyperedge(otherHyperedge)
           }
         }
-        case default ⇒ {}
+        case default => {}
       }
     })
   }

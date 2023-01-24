@@ -85,7 +85,8 @@ class PoweringSimulator(val source: BitGraph[OWLClass, OWLObjectProperty],
               if (maxConjunctionSize.isDefined && isTooLarge(hypergraph, maxConjunctionSize.get - labels.size)) {
                 throw PoweringTooLargeException("The hypergraph is too big: " + hypergraph.tail.foldLeft(hypergraph.head.size + "")(_ + " x " + _.size))
               } else {
-                HSdagBits.allMinimalHittingSets(hypergraph, true)
+                //HSdagBits.allMinimalHittingSets(hypergraph)
+                HSdagBitsPar.allMinimalHittingSets(source.nodes().size - 1, hypergraph)
                   // We only keep the simulation-minimal elements, i.e., which are not simulated by another element.
                   // We assume the the source is reduced, otherwise we would need to modify the filter condition.
                   .map(mhs => mhs.filter(x => mhs.forall(y => (x equals y) || !simulation(y, x))))
