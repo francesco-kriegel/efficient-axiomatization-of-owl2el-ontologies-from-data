@@ -44,6 +44,8 @@ enum WhichDisjointnessAxioms:
 
 object Axiomatization {
 
+  val MAX_POWERING_SIZE = 10000000
+
   def run(ontologyFile: File,
           ont: String,
           whichDisjointnessAxioms: WhichDisjointnessAxioms,
@@ -353,7 +355,7 @@ object Axiomatization {
             PoweringClosureOperator(
               reducedCanonicalModel,
               Some(simulationOnRCM),
-              if maxConjunctionSize.isDefined then maxConjunctionSize else Some(10000000),
+              if maxConjunctionSize.isDefined then maxConjunctionSize else Some(MAX_POWERING_SIZE),
               if maxConjunctionSize.isDefined then false else true,
               maxRoleDepth.map(_ - 1)
             ),
