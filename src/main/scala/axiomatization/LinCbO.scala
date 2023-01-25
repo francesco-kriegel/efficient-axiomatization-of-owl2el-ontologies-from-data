@@ -609,13 +609,19 @@ object LinCbO_WithBackgroundImplications_Par {
     nextSteps add (first, -1, first, counts.toArray)
 
     while (!nextSteps.isEmpty) {
-      val futures = mutable.Queue[java.util.concurrent.RecursiveAction]()
+//      val futures = mutable.Queue[java.util.concurrent.RecursiveAction]()
+//      while (!nextSteps.isEmpty) {
+//        val nextStep = nextSteps.poll()
+//        futures addOne { () => Step.tupled(nextStep) }
+//      }
+//      futures foreach { FORK_JOIN_POOL.execute }
+//      futures foreach { _.quietlyJoin }
+      val forkJoinTasks = mutable.Queue[java.util.concurrent.ForkJoinTask[Void]]()
       while (!nextSteps.isEmpty) {
         val nextStep = nextSteps.poll()
-        futures addOne { () => Step.tupled(nextStep) }
+        forkJoinTasks enqueue ({ () => Step.tupled(nextStep) }: java.util.concurrent.RecursiveAction).fork()
       }
-      futures foreach { FORK_JOIN_POOL.execute }
-      futures foreach { _.quietlyJoin }
+      forkJoinTasks.foreach { _.join() }
     }
 
     logger.println()

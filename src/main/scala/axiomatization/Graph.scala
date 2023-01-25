@@ -218,12 +218,12 @@ object GraphSimulator {
     val R = java.util.concurrent.ConcurrentHashMap[N, ConcurrentBitMap[R]]().asScala
 
     def addToR(x: N, r: R, y: Int): Unit = {
-      R.getOrElseUpdate(x, ConcurrentBitMap[R](target.nodes().size - 1)).add(r, y)
+      R.getOrElseUpdate(x, ConcurrentBitMap[R](target.nodes().max)).add(r, y)
     }
 
     source.nodes().foreachPar(x => {
       logger.tick()
-      R(x) = ConcurrentBitMap[R](target.nodes().size - 1)
+      R(x) = ConcurrentBitMap[R](target.nodes().max)
       for (y <- simulation.row(x).viewAsImmutableBitSet) {
         for (r <- target.predecessorRelations(y)) {
           R(x).rowMap.getOrElseUpdate(r, ConcurrentBoundedBitSet(target.nodes().toBitMask))
@@ -239,14 +239,15 @@ object GraphSimulator {
 
     while (R.keySet.nonEmpty) {
 
-      val futures = java.util.concurrent.ConcurrentLinkedQueue[java.util.concurrent.RecursiveAction]()
+      //val forkJoinTasks = java.util.concurrent.ConcurrentLinkedQueue[java.util.concurrent.RecursiveAction]()
+      val forkJoinTasks = mutable.Queue[java.util.concurrent.RecursiveAction]()
       val remainingNodes = collection.mutable.HashSet.from(R.keySet)
 
       while (remainingNodes.nonEmpty) {
         val x = remainingNodes.head
         remainingNodes -= x
         remainingNodes --= nodesThatHaveACommonPredecessorWith(x)
-        val future: java.util.concurrent.RecursiveAction = () => {
+        val forkJoinTask: java.util.concurrent.RecursiveAction = () => {
           val Rx = R.remove(x).get
           Rx.rows().foreach({ r =>
             logger.tick()
@@ -265,11 +266,14 @@ object GraphSimulator {
             }
           })
         }
-        futures.add(future)
-        FORK_JOIN_POOL.execute(future)
+        //forkJoinTasks.add(forkJoinTask)
+        //FORK_JOIN_POOL.execute(forkJoinTask)
+        forkJoinTask.fork()
+        forkJoinTasks.enqueue(forkJoinTask)
       }
 
-      futures.forEach(_.quietlyJoin())
+      //forkJoinTasks.forEach(_.quietlyJoin())
+      forkJoinTasks.foreach(_.join())
 
     }
 

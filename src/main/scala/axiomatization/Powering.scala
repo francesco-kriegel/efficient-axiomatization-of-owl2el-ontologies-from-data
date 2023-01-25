@@ -50,6 +50,12 @@ class PoweringSimulator(val source: BitGraph[OWLClass, OWLObjectProperty],
 
   val simulation = if knownSimulation.isDefined then knownSimulation.get else GraphSimulator.computeMaximalSimulation(source, source)
 
+  private inline def minimalObjects(xs: collection.BitSet): collection.BitSet = {
+    // We only keep the simulation-minimal elements, i.e., which are not simulated by another element.
+    // We assume the the source is reduced, otherwise we would need to modify the filter condition.
+    xs.filter(x => xs.forall(y => (x equals y) || !simulation(y, x)))
+  }
+
   private def isTooLarge(hypergraph: collection.Set[collection.BitSet], limit: Int): Boolean = {
     var tooLarge = false
     var hypergraphSize = 1L
@@ -86,13 +92,11 @@ class PoweringSimulator(val source: BitGraph[OWLClass, OWLObjectProperty],
             relations.foreach(r => {
               val hypergraph: collection.Set[collection.BitSet] = xs.unsorted.map(x => source.successorsForRelation(x, r))
               if (maxConjunctionSize.isDefined && isTooLarge(hypergraph, maxConjunctionSize.get - labels.size)) {
-                throw PoweringTooLargeException("An object in the powering has more than " + maxConjunctionSize.get + " labels or successors.  Hypergraph: " + hypergraph.tail.foldLeft(hypergraph.head.size + "")(_ + " x " + _.size))
+                throw PoweringTooLargeException("An object in the powering could have more than " + maxConjunctionSize.get + " labels or successors.  Hypergraph: " + hypergraph.tail.foldLeft(hypergraph.head.size + "")(_ + " x " + _.size))
               } else {
                 //HSdagBits.allMinimalHittingSets(hypergraph)
                 HSdagBitsPar.allMinimalHittingSets(source.nodes().size - 1, hypergraph)
-                  // We only keep the simulation-minimal elements, i.e., which are not simulated by another element.
-                  // We assume the the source is reduced, otherwise we would need to modify the filter condition.
-                  .map(mhs => mhs.filter(x => mhs.forall(y => (x equals y) || !simulation(y, x))))
+                  .map(minimalObjects(_))
                   .foreach(ys => {
                     powering.addEdge(xs, r, ys)
                     next.addOne(ys)
@@ -107,9 +111,10 @@ class PoweringSimulator(val source: BitGraph[OWLClass, OWLObjectProperty],
     }
 
     try {
-      extendPowering(Set(xs), maxRoleDepth)
+      val minxs = minimalObjects(xs)
+      extendPowering(Set(minxs), maxRoleDepth)
       val poweringSimulation = GraphSimulator.computeMaximalSimulation(powering, target)
-      poweringSimulation.row(xs).viewAsImmutableBitSet
+      poweringSimulation.row(minxs).viewAsImmutableBitSet
     } catch case e: PoweringTooLargeException => {
       if throwExceptionWhenSomeConjunctionIsTooLarge then throw e
       else if source equals target then source.nodes() else collection.BitSet.empty

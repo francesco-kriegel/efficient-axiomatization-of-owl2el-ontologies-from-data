@@ -364,7 +364,7 @@ object Axiomatization {
         } catch {
           case e: PoweringTooLargeException =>
             writeResults(ont + ";" + whichDisjointnessAxioms + "-" + maxRoleDepth.map(_.toString).getOrElse("INF") + "-" + maxConjunctionSize.map(_.toString).getOrElse("INF") + ";PoweringTooLarge;;;;;;;;;;;;;;;;;;;;;;;;;")
-            System.err.println("\n\n" + e)
+            println("\n\n" + e)
             System.exit(5)
             mutable.HashMap.empty[collection.BitSet, collection.BitSet] //only for type inference
         }
