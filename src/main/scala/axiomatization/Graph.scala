@@ -130,8 +130,7 @@ object GraphSimulator {
   /**
    * This method computes the largest simulation from the source graph to the target graph.  More specifically, by
    * "simulation" we mean a forwardly-directed simulation, which describe the semantics of the description logic 𝓔𝓛 and
-   * of its extension with simulation quantifiers or, respectively, greatest fixed-point semantics.  It is assumed that
-   * the nodes in both graphs are consecutive numbers starting with 0.
+   * of its extension with simulation quantifiers or, respectively, greatest fixed-point semantics.
    *
    * @param source the source graph
    * @param target the target graph
@@ -148,15 +147,14 @@ object GraphSimulator {
     })
     computeMaximalSimulation[Int, L, R, collection.mutable.BitSet, BitGraph[L, R], ConcurrentArrayBitBiMap](
       source, target, nodesThatHaveACommonPredecessorWith,
-      () => ConcurrentArrayBitBiMap(source.nodes().size, target.nodes().size),
+      () => ConcurrentArrayBitBiMap(source.nodes().maxOption.getOrElse(0) + 1, target.nodes().maxOption.getOrElse(0) + 1),
       (simulation, xx, yy) => { simulation.col(yy).remove(xx) })
   }
 
   /**
    * This method computes the largest simulation from the source graph to the target graph.  More specifically, by
    * "simulation" we mean a forwardly-directed simulation, which describe the semantics of the description logic 𝓔𝓛 and
-   * of its extension with simulation quantifiers or, respectively, greatest fixed-point semantics.  It is assumed that
-   * the nodes in both graphs are consecutive numbers starting with 0.
+   * of its extension with simulation quantifiers or, respectively, greatest fixed-point semantics.
    *
    * @param source the source graph
    * @param target the target graph
@@ -173,15 +171,14 @@ object GraphSimulator {
     })
     computeMaximalSimulation[collection.BitSet, L, R, collection.mutable.HashSet[collection.BitSet], HashGraph[collection.BitSet, L, R], ConcurrentBitSetToIntRelation](
       source, target, nodesThatHaveACommonPredecessorWith,
-      () => ConcurrentBitSetToIntRelation(if target.nodes().isEmpty then 0 else target.nodes().max),
+      () => ConcurrentBitSetToIntRelation(target.nodes().maxOption.getOrElse(0)),
       (_, _, _) => {})
   }
 
   /**
    * This method computes the largest simulation from the source graph to the target graph.  More specifically, by
    * "simulation" we mean a forwardly-directed simulation, which describe the semantics of the description logic 𝓔𝓛 and
-   * of its extension with simulation quantifiers or, respectively, greatest fixed-point semantics.  It is assumed that
-   * the nodes in both graphs are consecutive numbers starting with 0.
+   * of its extension with simulation quantifiers or, respectively, greatest fixed-point semantics.
    *
    * @param source the source graph
    * @param target the target graph
@@ -218,12 +215,12 @@ object GraphSimulator {
     val R = java.util.concurrent.ConcurrentHashMap[N, ConcurrentBitMap[R]]().asScala
 
     def addToR(x: N, r: R, y: Int): Unit = {
-      R.getOrElseUpdate(x, ConcurrentBitMap[R](target.nodes().max)).add(r, y)
+      R.getOrElseUpdate(x, ConcurrentBitMap[R](target.nodes().maxOption.getOrElse(0))).add(r, y)
     }
 
     source.nodes().foreachPar(x => {
       logger.tick()
-      R(x) = ConcurrentBitMap[R](target.nodes().max)
+      R(x) = ConcurrentBitMap[R](target.nodes().maxOption.getOrElse(0))
       for (y <- simulation.row(x).viewAsImmutableBitSet) {
         for (r <- target.predecessorRelations(y)) {
           R(x).rowMap.getOrElseUpdate(r, ConcurrentBoundedBitSet(target.nodes().toBitMask))
