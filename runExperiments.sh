@@ -1977,7 +1977,7 @@ function runPrototypeAtMostTwice {
     arg1=$1
     arg2="computeEverything"
   fi
-  output=$(timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -XX:+ExitOnOutOfMemoryError -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.2.0-SNAPSHOT.jar $id $arg1 $arg2 quiet $2 $3)
+  output=$(timeout $time ../graalvm-ee-java19-22.3.0/bin/java -Xms80g -Xmx80g -XX:+ExitOnOutOfMemoryError -jar efficient-axiomatization-of-owl2el-ontologies-from-data-assembly-0.2.0-SNAPSHOT.jar $id $arg1 $arg2 quiet $2 $3 2>&1)
   exitStatus=$?
   if [[ "${output}" == *"OutOfMemory"* ]]; then exitStatus=3; fi
   case $exitStatus in
@@ -2007,6 +2007,11 @@ function runPrototypeAtMostTwice {
   if [[ $4 -ne 0 ]] && [[ ${exitStatus} -ne 0 ]] && [[ ${exitStatus} -ne 124 ]] && [[ ${exitStatus} -ne 137 ]] && [[ ${exitStatus} -ne 3 ]] && [[ ${exitStatus} -ne 4 ]] && [[ ${exitStatus} -ne 5 ]]; then
     runPrototypeAtMostTwice $1 $2 $3 "0"
   fi
+}
+
+function skipRunPrototype {
+  echo -n "[$(date +"%T")] Computing experiment (disjointness axioms: $1, maximal role depth: $2, maximal conjunction size: $3, timeout: ${time})... "
+  echo -e "${Blue}Skipped${Reset}"
 }
 
 for key in "${ontologies[@]}"; do
@@ -2045,55 +2050,77 @@ for key in "${ontologies[@]}"; do
         if [[ ${exitStatus_None_1_32} -eq 0 ]]; then
           runPrototype "Fast" "1" "32"
           exitStatus_Fast_1_32=${exitStatus}
+        else
+          skipRunPrototype "Fast" "1" "32"
         fi
 
         if [[ ${exitStatus_Fast_1_32} -eq 0 ]]; then
           runPrototype "Canonical" "1" "32"
           exitStatus_Canonical_1_32=${exitStatus}
+        else
+          skipRunPrototype "Canonical" "1" "32"
         fi
 
         if [[ ${exitStatus_None_1_32} -eq 0 ]]; then
           runPrototype "None" "2" "32"
           exitStatus_None_2_32=${exitStatus}
+        else
+          skipRunPrototype "None" "2" "32"
         fi
 
         if [[ ${exitStatus_None_2_32} -eq 0 ]] && [[ ${exitStatus_Fast_1_32} -eq 0 ]]; then
           runPrototype "Fast" "2" "32"
           exitStatus_Fast_2_32=${exitStatus}
+        else
+          skipRunPrototype "Fast" "2" "32"
         fi
 
         if [[ ${exitStatus_Fast_2_32} -eq 0 ]] && [[ ${exitStatus_Canonical_1_32} -eq 0 ]]; then
           runPrototype "Canonical" "2" "32"
           exitStatus_Canonical_2_32=${exitStatus}
+        else
+          skipRunPrototype "Canonical" "2" "32"
         fi
 
         if [[ ${exitStatus_None_2_32} -eq 0 ]]; then
           runPrototype "None" "INF" "32"
           exitStatus_None_INF_32=${exitStatus}
+        else
+          skipRunPrototype "None" "INF" "32"
         fi
 
         if [[ ${exitStatus_None_INF_32} -eq 0 ]] && [[ ${exitStatus_Fast_2_32} -eq 0 ]]; then
           runPrototype "Fast" "INF" "32"
           exitStatus_Fast_INF_32=${exitStatus}
+        else
+          skipRunPrototype "Fast" "INF" "32"
         fi
 
         if [[ ${exitStatus_Fast_INF_32} -eq 0 ]] && [[ ${exitStatus_Canonical_2_32} -eq 0 ]]; then
           runPrototype "Canonical" "INF" "32"
           exitStatus_Canonical_INF_32=${exitStatus}
+        else
+          skipRunPrototype "Canonical" "INF" "32"
         fi
 
         if [[ ${exitStatus_None_INF_32} -eq 0 ]]; then
           runPrototype "None" "INF" "INF"
           exitStatus_None_INF_INF=${exitStatus}
+        else
+          skipRunPrototype "None" "INF" "INF"
         fi
 
         if [[ ${exitStatus_None_INF_INF} -eq 0 ]] && [[ ${exitStatus_Fast_INF_32} -eq 0 ]]; then
           runPrototype "Fast" "INF" "INF"
           exitStatus_Fast_INF_INF=${exitStatus}
+        else
+          skipRunPrototype "Fast" "INF" "INF"
         fi
 
         if [[ ${exitStatus_Fast_INF_INF} -eq 0 ]] && [[ ${exitStatus_Canonical_INF_32} -eq 0 ]]; then
           runPrototype "Canonical" "INF" "INF"
+        else
+          skipRunPrototype "Canonical" "INF" "INF"
         fi
 
       fi

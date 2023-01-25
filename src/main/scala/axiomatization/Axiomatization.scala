@@ -13,7 +13,7 @@ import org.semanticweb.owlapi.model.*
 import org.semanticweb.owlapi.model.parameters.Imports
 import uk.ac.manchester.cs.owl.owlapi.{OWLAnonymousIndividualImpl, OWLNamedIndividualImpl}
 
-import java.io.*
+import java.io.{BufferedReader, BufferedWriter, File, FileOutputStream, FileReader, FileWriter}
 import java.text.SimpleDateFormat
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.{AtomicInteger, AtomicReference}
@@ -364,7 +364,7 @@ object Axiomatization {
         } catch {
           case e: PoweringTooLargeException =>
             writeResults(ont + ";" + whichDisjointnessAxioms + "-" + maxRoleDepth.map(_.toString).getOrElse("INF") + "-" + maxConjunctionSize.map(_.toString).getOrElse("INF") + ";PoweringTooLarge;;;;;;;;;;;;;;;;;;;;;;;;;")
-            println("\n\n" + e)
+            Console.err.println("\n\n" + e)
             System.exit(5)
             mutable.HashMap.empty[collection.BitSet, collection.BitSet] //only for type inference
         }
