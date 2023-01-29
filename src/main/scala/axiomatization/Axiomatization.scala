@@ -258,6 +258,7 @@ object Axiomatization {
     nodesWithPredecessor.foreach(i => {
       remapToRCM(j) = i; remapFromRCM(i) = j; j += 1
     })
+    val maxInFirstIteration = j - 1
     nodesWithoutPredecessor.foreach(i => {
       remapToRCM(j) = i; remapFromRCM(i) = j; j += 1
     })
@@ -334,10 +335,17 @@ object Axiomatization {
 
     logger.println("Computing closures...")
 
-    def isOccupiedAttribute(ms: collection.BitSet): Boolean = {
-      //      ms.exists(m => reducedCanonicalModel.predecessors(m).exists((_,p) => rcmRepresentsIndividual(p)))
-      ms.exists(m => reducedCanonicalModel.predecessors(m).nonEmpty)
-    }
+//    def isOccupiedAttribute(ms: collection.BitSet): Boolean = {
+//      //      ms.exists(m => reducedCanonicalModel.predecessors(m).exists((_,p) => rcmRepresentsIndividual(p)))
+//      ms.exists(m => reducedCanonicalModel.predecessors(m).nonEmpty)
+//    }
+//    val closureInclusionIdeal =
+//      if withDisjointnessAxioms then
+//        (_: collection.BitSet) => true
+//      else
+//        val hasPredecessor = reducedCanonicalModel.nodes().filter(reducedCanonicalModel.predecessors(_).nonEmpty)
+//        (ms: collection.BitSet) => (ms & hasPredecessor).nonEmpty
+
     //    given valueLogger: ValueLogger = FileValueLogger("ore2015_pool_sample_experiments/closures/" + ont + ".csv", whichDisjointnessAxioms.toString)
     val (closureToGeneratorMap, measurement_ComputationTime_Closures) = measureExecutionTime {
       if (maxRoleDepth.isDefined && (maxRoleDepth.get equals 0))
@@ -350,7 +358,7 @@ object Axiomatization {
 //          FCbOPar.computeAllClosures(n, PoweringClosureOperator(reducedCanonicalModel, Some(simulationOnRCM), maxConjunctionSize, false, maxRoleDepth.map(_ - 1)), isOccupiedAttribute)
 //            //.subtractOne(reducedCanonicalModel.nodes())
         try {
-          FCbOPar.computeAllClosures(
+          FCbOPar_Mod.computeAllClosures(
             n,
             PoweringClosureOperator(
               reducedCanonicalModel,
@@ -359,12 +367,14 @@ object Axiomatization {
               if maxConjunctionSize.isDefined then false else true,
               maxRoleDepth.map(_ - 1)
             ),
-            if withDisjointnessAxioms then (_: collection.BitSet) => true else isOccupiedAttribute
+//            if withDisjointnessAxioms then (_: collection.BitSet) => true else isOccupiedAttribute
+//            closureInclusionIdeal
+            if withDisjointnessAxioms then n else maxInFirstIteration
           )
         } catch {
           case e: PoweringTooLargeException =>
             writeResults(ont + ";" + whichDisjointnessAxioms + "-" + maxRoleDepth.map(_.toString).getOrElse("INF") + "-" + maxConjunctionSize.map(_.toString).getOrElse("INF") + ";PoweringTooLarge;;;;;;;;;;;;;;;;;;;;;;;;;")
-            Console.err.println("\n\n" + e)
+            Console.err.println(e)
             System.exit(5)
             mutable.HashMap.empty[collection.BitSet, collection.BitSet] //only for type inference
         }

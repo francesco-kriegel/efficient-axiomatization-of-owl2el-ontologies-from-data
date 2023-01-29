@@ -73,6 +73,8 @@ class PoweringSimulator(val source: BitGraph[OWLClass, OWLObjectProperty],
 
   def apply(xs: collection.BitSet): collection.BitSet = {
 
+    if xs.isEmpty then throw IllegalArgumentException()
+
     val powering = HashGraph[collection.BitSet, OWLClass, OWLObjectProperty]()
 
     @tailrec
