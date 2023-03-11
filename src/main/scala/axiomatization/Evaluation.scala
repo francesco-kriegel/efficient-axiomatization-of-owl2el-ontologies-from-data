@@ -9,26 +9,123 @@ import scala.jdk.StreamConverters.*
 
 object Evaluation {
 
-  private enum Mode:
-    case Reduction, NoDisjointnessAxioms, FastDisjointnessAxioms, CanonicalDisjointnessAxioms
+//  private enum Mode:
+//    case Reduction, NoDisjointnessAxioms, FastDisjointnessAxioms, CanonicalDisjointnessAxioms
+//
+//  private object Mode {
+//    def apply(string: String): Mode = {
+//      string match {
+//        case "Reduction" => Reduction
+//        case "None" => NoDisjointnessAxioms
+//        case "Fast" => FastDisjointnessAxioms
+//        case "Canonical" => CanonicalDisjointnessAxioms
+//        case _ => throw MatchError(string)
+//      }
+//    }
+//  }
+
+  private sealed abstract class Mode {
+    override def toString: String = this match {
+      case Reduction() => "Reduction"
+      case NoDisjointnessAxioms(roleDepthBound, conjunctionSizeLimit) => "None-" + roleDepthBound.getOrElse("INF") + "-" + conjunctionSizeLimit.getOrElse("INF")
+      case FastDisjointnessAxioms(roleDepthBound, conjunctionSizeLimit) => "Fast-" + roleDepthBound.getOrElse("INF") + "-" + conjunctionSizeLimit.getOrElse("INF")
+      case CanonicalDisjointnessAxioms(roleDepthBound, conjunctionSizeLimit) => "Canonical-" + roleDepthBound.getOrElse("INF") + "-" + conjunctionSizeLimit.getOrElse("INF")
+    }
+  }
+  private case class Reduction() extends Mode
+  private case class NoDisjointnessAxioms(roleDepthBound: Option[Int], conjunctionSizeLimit: Option[Int]) extends Mode
+  private case class FastDisjointnessAxioms(roleDepthBound: Option[Int], conjunctionSizeLimit: Option[Int]) extends Mode
+  private case class CanonicalDisjointnessAxioms(roleDepthBound: Option[Int], conjunctionSizeLimit: Option[Int]) extends Mode
 
   private object Mode {
+    private val NoneRegex = "None-(\\d+|INF)-(\\d+|INF)".r
+    private val FastRegex = "Fast-(\\d+|INF)-(\\d+|INF)".r
+    private val CanonicalRegex = "Canonical-(\\d+|INF)-(\\d+|INF)".r
+    private def parse(string: String): Option[Int] = {
+      if string equals "INF" then None else Some(string.toInt)
+    }
     def apply(string: String): Mode = {
       string match {
-        case "Reduction" => Reduction
-        case "None" => NoDisjointnessAxioms
-        case "Fast" => FastDisjointnessAxioms
-        case "Canonical" => CanonicalDisjointnessAxioms
+        case "Reduction" => Reduction()
+        case "Reduction-INF-INF" => Reduction()
+        case NoneRegex(roleDepthBound, conjunctionSizeLimit) => NoDisjointnessAxioms(parse(roleDepthBound), parse(conjunctionSizeLimit))
+        case FastRegex(roleDepthBound, conjunctionSizeLimit) => FastDisjointnessAxioms(parse(roleDepthBound), parse(conjunctionSizeLimit))
+        case CanonicalRegex(roleDepthBound, conjunctionSizeLimit) => CanonicalDisjointnessAxioms(parse(roleDepthBound), parse(conjunctionSizeLimit))
         case _ => throw MatchError(string)
       }
     }
   }
 
-  private sealed abstract class Status
+  private val Mode_Reduction = Reduction()
+
+  private val Mode_None_0_32 = NoDisjointnessAxioms(Some(0), Some(32))
+  private val Mode_None_1_8 = NoDisjointnessAxioms(Some(1), Some(8))
+  private val Mode_None_1_32 = NoDisjointnessAxioms(Some(1), Some(32))
+  private val Mode_None_2_32 = NoDisjointnessAxioms(Some(2), Some(32))
+  private val Mode_None_INF_32 = NoDisjointnessAxioms(None, Some(32))
+  private val Mode_None_INF_INF = NoDisjointnessAxioms(None, None)
+
+  private val Mode_Fast_0_32 = FastDisjointnessAxioms(Some(0), Some(32))
+  private val Mode_Fast_1_8 = FastDisjointnessAxioms(Some(1), Some(8))
+  private val Mode_Fast_1_32 = FastDisjointnessAxioms(Some(1), Some(32))
+  private val Mode_Fast_2_32 = FastDisjointnessAxioms(Some(2), Some(32))
+  private val Mode_Fast_INF_32 = FastDisjointnessAxioms(None, Some(32))
+  private val Mode_Fast_INF_INF = FastDisjointnessAxioms(None, None)
+
+  private val Mode_Canonical_0_32 = CanonicalDisjointnessAxioms(Some(0), Some(32))
+  private val Mode_Canonical_1_8 = CanonicalDisjointnessAxioms(Some(1), Some(8))
+  private val Mode_Canonical_1_32 = CanonicalDisjointnessAxioms(Some(1), Some(32))
+  private val Mode_Canonical_2_32 = CanonicalDisjointnessAxioms(Some(2), Some(32))
+  private val Mode_Canonical_INF_32 = CanonicalDisjointnessAxioms(None, Some(32))
+  private val Mode_Canonical_INF_INF = CanonicalDisjointnessAxioms(None, None)
+
+  private val Mode_values = collection.immutable.List(
+    Mode_Reduction,
+    Mode_None_0_32, Mode_None_1_8, Mode_None_1_32, Mode_None_2_32, Mode_None_INF_32, Mode_None_INF_INF,
+    Mode_Fast_0_32, Mode_Fast_1_8, Mode_Fast_1_32, Mode_Fast_2_32, Mode_Fast_INF_32, Mode_Fast_INF_INF,
+    Mode_Canonical_0_32, Mode_Canonical_1_8, Mode_Canonical_1_32, Mode_Canonical_2_32, Mode_Canonical_INF_32, Mode_Canonical_INF_INF
+  )
+
+  private val Mode_parents = collection.immutable.Map(
+    Mode_Reduction -> collection.immutable.List(),
+
+    Mode_None_0_32 -> collection.immutable.List(),
+    Mode_None_1_8 -> collection.immutable.List(),
+    Mode_None_1_32 -> collection.immutable.List(),
+    Mode_None_2_32 -> collection.immutable.List(Mode_None_1_32),
+    Mode_None_INF_32 -> collection.immutable.List(Mode_None_2_32),
+    Mode_None_INF_INF -> collection.immutable.List(Mode_None_INF_32),
+
+    Mode_Fast_0_32 -> collection.immutable.List(), // This is correct.
+    Mode_Fast_1_8 -> collection.immutable.List(Mode_None_1_8),
+    Mode_Fast_1_32 -> collection.immutable.List(Mode_None_1_32),
+    Mode_Fast_2_32 -> collection.immutable.List(Mode_None_2_32, Mode_Fast_1_32),
+    Mode_Fast_INF_32 -> collection.immutable.List(Mode_None_INF_32, Mode_Fast_2_32),
+    Mode_Fast_INF_INF -> collection.immutable.List(Mode_None_INF_INF, Mode_Fast_INF_32),
+
+    Mode_Canonical_0_32 -> collection.immutable.List(Mode_None_0_32), // This is correct.
+    Mode_Canonical_1_8 -> collection.immutable.List(Mode_Fast_1_8),
+    Mode_Canonical_1_32 -> collection.immutable.List(Mode_Fast_1_32),
+    Mode_Canonical_2_32 -> collection.immutable.List(Mode_Fast_2_32, Mode_Canonical_1_32),
+    Mode_Canonical_INF_32 -> collection.immutable.List(Mode_Fast_INF_32, Mode_Canonical_2_32),
+    Mode_Canonical_INF_INF -> collection.immutable.List(Mode_Fast_INF_INF, Mode_Canonical_INF_32)
+  )
+
+  private sealed abstract class Status {
+    override def toString: String = this match {
+      case Success() => "Success"
+      case Timeout(minutes) => s"Timeout(${minutes}m)"
+      case OutOfMemory(gigabytes) => s"OutOfMemory(${gigabytes}g)"
+      case Inconsistent() => "Inconsistent"
+      case PoweringTooLarge() => "PoweringTooLarge"
+      case Error(number) => s"Error(${number})"
+    }
+  }
   private case class Success() extends Status
   private case class Timeout(minutes: Int) extends Status
   private case class OutOfMemory(gigabytes: Int) extends Status
   private case class Inconsistent() extends Status
+  private case class PoweringTooLarge() extends Status
   private case class Error(number: Int) extends Status
 
   private object Status {
@@ -48,6 +145,7 @@ object Evaluation {
           }
         case OutOfMemoryRegex(n) => OutOfMemory(n.toInt)
         case "Inconsistent" => Inconsistent()
+        case "PoweringTooLarge" => PoweringTooLarge()
         case ErrorRegex(n) => Error(n.toInt)
         case _ => throw MatchError(string)
       }
@@ -187,17 +285,24 @@ object Evaluation {
       Ratio_IrreduciblesInReduction.map(_.toString).getOrElse("") + "\n"
     }
 
+    private val TIMEOUT_MINUTES = 8 * 60;
+    private val TIMEOUT_SECONDS = TIMEOUT_MINUTES * 60;
+
     private def computationTimeToString(maybeComputationTime: Option[Long]): String = {
       status match {
         case Success() => maybeComputationTime.map(long => (long.toFloat / 1000f).toString).getOrElse("")
-        case Timeout(minutes) => (minutes * 60).toString
+//        case Timeout(minutes) => (minutes * 60).toString
+        case Timeout(minutes) => if minutes == TIMEOUT_MINUTES then TIMEOUT_SECONDS.toString else throw RuntimeException()
+        case OutOfMemory(gigabytes) => (2 * TIMEOUT_SECONDS).toString
+        case PoweringTooLarge() => (4 * TIMEOUT_SECONDS).toString
         case _ => ""
       }
     }
 
   }
 
-  private val ore2015Folder = java.io.File("/Users/francesco/workspace/Java_Scala/efficient-axiomatization-of-owl2el-ontologies-from-data/ore2015_pool_sample")
+//  private val ore2015Folder = java.io.File("/Users/francesco/workspace/Java_Scala/efficient-axiomatization-of-owl2el-ontologies-from-data/ore2015_pool_sample")
+  private val ore2015Folder = java.io.File("ore2015_pool_sample")
   private val inputOntologiesFolder = java.io.File(ore2015Folder, "files")
 
   private val inputStatisticsMap = scala.collection.mutable.HashMap[Int, InputStatistics]()
@@ -221,6 +326,7 @@ object Evaluation {
       val owlManager = org.semanticweb.owlapi.apibinding.OWLManager.createOWLOntologyManager()
       val owlOntologyInputOntology = owlManager.loadOntologyFromOntologyDocument(owlFileInputOntology)
       val graph = BitGraph.fromOntology(owlOntologyInputOntology)
+      owlManager.clearOntologies()
 
       val Number_ObjectsInDomain = graph.nodes().size
       val Flag_Acyclic = hasAcyclicABox(graph)
@@ -274,7 +380,9 @@ object Evaluation {
                                     val Number_TypeTriplesPerObjectOnAverage: Float,
                                     val Number_RelationTriplesPerObjectOnAverage: Float) {}
 
-  private val experimentFolder = java.io.File("/Users/francesco/workspace/Java_Scala/efficient-axiomatization-of-owl2el-ontologies-from-data/ore2015_pool_sample_experiments_russell_performance")
+//  private val experimentFolder = java.io.File("/Users/francesco/workspace/Java_Scala/efficient-axiomatization-of-owl2el-ontologies-from-data/ore2015_pool_sample_experiments_russell_performance")
+  private val experimentFolder = java.io.File("ore2015_pool_sample_experiments")
+//  private val experimentFolder = java.io.File("ore2015_pool_sample_experiments_test")
   private val resultsFolder = java.io.File(experimentFolder,"results")
   private val statisticsFolder = java.io.File(experimentFolder,"statistics")
   private val reductionsFolder = java.io.File(experimentFolder,"files")
@@ -337,6 +445,7 @@ object Evaluation {
           val owlManager = org.semanticweb.owlapi.apibinding.OWLManager.createOWLOntologyManager()
           val owlOntologyReduction = owlManager.loadOntologyFromOntologyDocument(owlFileReduction)
           val graph = BitGraph.fromOntology(owlOntologyReduction)
+          owlManager.clearOntologies()
 
           if (!(graph.nodes().size equals Number_ObjectsInReducedDomain))
             throw new RuntimeException()
@@ -413,8 +522,9 @@ object Evaluation {
                 x.status match {
                   case Success() => 1000
                   case Inconsistent() => 900
+                  case PoweringTooLarge() => 800
+                  case OutOfMemory(_) => 700
                   case Timeout(minutes) => minutes
-                  case OutOfMemory(_) => 200
                   case Error(_) => 1
                 }
               }
@@ -429,7 +539,8 @@ object Evaluation {
         }
 
         val bestResultFor =
-          (Mode.values: scala.Array[Mode])
+//          (Mode.values: scala.Array[Mode])
+          Mode_values
             .map(mode => mode -> results.filter(_.mode equals mode).maxOption(ResultOrdering))
             .toMap
 
@@ -441,51 +552,101 @@ object Evaluation {
             case Timeout(minutes) => s"Timeout(${minutes}m)"
             case OutOfMemory(gigabytes) => s"OutOfMemory(${gigabytes}g)"
             case Inconsistent() => "Inconsistent"
+            case PoweringTooLarge() => "PoweringTooLarge"
             case Error(number) => s"Error($number)"
           }
         }
 
-        if (bestResultFor(Mode.Reduction).isDefined)
-          results.addOne(bestResultFor(Mode.Reduction).get)
-          if (bestResultFor(Mode.NoDisjointnessAxioms).isDefined)
-            results.addOne(bestResultFor(Mode.NoDisjointnessAxioms).get)
-            if (bestResultFor(Mode.FastDisjointnessAxioms).isDefined)
-              results.addOne(bestResultFor(Mode.FastDisjointnessAxioms).get)
-              if (bestResultFor(Mode.CanonicalDisjointnessAxioms).isDefined)
-                results.addOne(bestResultFor(Mode.CanonicalDisjointnessAxioms).get)
-              else
-                results.addOne(Result("ore_ont_" + ont + ";Canonical;" + statusToString(Mode.FastDisjointnessAxioms)))
+//        if (bestResultFor(Mode.Reduction).isDefined)
+//          results.addOne(bestResultFor(Mode.Reduction).get)
+//          if (bestResultFor(Mode.NoDisjointnessAxioms).isDefined)
+//            results.addOne(bestResultFor(Mode.NoDisjointnessAxioms).get)
+//            if (bestResultFor(Mode.FastDisjointnessAxioms).isDefined)
+//              results.addOne(bestResultFor(Mode.FastDisjointnessAxioms).get)
+//              if (bestResultFor(Mode.CanonicalDisjointnessAxioms).isDefined)
+//                results.addOne(bestResultFor(Mode.CanonicalDisjointnessAxioms).get)
+//              else
+//                results.addOne(Result("ore_ont_" + ont + ";Canonical;" + statusToString(Mode.FastDisjointnessAxioms)))
+//            else
+//              results.addOne(Result("ore_ont_" + ont + ";Fast;" + statusToString(Mode.NoDisjointnessAxioms)))
+//              results.addOne(Result("ore_ont_" + ont + ";Canonical;" + statusToString(Mode.NoDisjointnessAxioms)))
+//          else
+//            results.addOne(Result("ore_ont_" + ont + ";None;" + statusToString(Mode.Reduction)))
+//            results.addOne(Result("ore_ont_" + ont + ";Fast;" + statusToString(Mode.Reduction)))
+//            results.addOne(Result("ore_ont_" + ont + ";Canonical;" + statusToString(Mode.Reduction)))
+//        else
+//          throw RuntimeException()
+
+        def findFailedAncestor(mode: Mode): Option[Result] = {
+          Mode_parents(mode).map(bestResultFor).filter(_.isDefined).map(_.get).find(_.status != Success())
+            .orElse(Mode_parents(mode).map(findFailedAncestor).find(_.isDefined).getOrElse(None))
+        }
+
+        Mode_values.foreach(mode => {
+          if bestResultFor(mode).isDefined
+          then results.addOne(bestResultFor(mode).get)
+          else {
+            val failure = findFailedAncestor(mode)
+            if failure.isDefined
+            then results.addOne(Result("ore_ont_" + ont + ";" + mode + ";" + statusToString(failure.get.mode)))
             else
-              results.addOne(Result("ore_ont_" + ont + ";Fast;" + statusToString(Mode.NoDisjointnessAxioms)))
-              results.addOne(Result("ore_ont_" + ont + ";Canonical;" + statusToString(Mode.NoDisjointnessAxioms)))
-          else
-            results.addOne(Result("ore_ont_" + ont + ";None;" + statusToString(Mode.Reduction)))
-            results.addOne(Result("ore_ont_" + ont + ";Fast;" + statusToString(Mode.Reduction)))
-            results.addOne(Result("ore_ont_" + ont + ";Canonical;" + statusToString(Mode.Reduction)))
-        else
-          throw RuntimeException()
+              if (bestResultFor(Mode_Reduction).get.status == Success() && bestResultFor(Mode_Reduction).get.Number_ObjectsInReducedDomain.get >= 10)
+              throw RuntimeException("No result for " + mode)
+          }
+        })
 
     })
   }
 
 
-  private val paperFolder = java.io.File("/Users/francesco/workspace/LaTeX/efficient-axiomatization-of-owl2el-ontologies-from-data/ESWC_2023")
+//  private val paperFolder = java.io.File("/Users/francesco/workspace/LaTeX/efficient-axiomatization-of-owl2el-ontologies-from-data/KR_2023")
+  private val paperFolder = java.io.File("paper")
   private val evaluationFolder = java.io.File(paperFolder, "evaluation")
 
   def writeEvaluationData(): Unit = {
     val writer =
       Map[Mode, java.io.FileWriter](
-        Mode.Reduction -> java.io.FileWriter(java.io.File(evaluationFolder, "Reduction.csv")),
-        Mode.NoDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx.csv")),
-        Mode.FastDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx.csv")),
-        Mode.CanonicalDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx.csv"))
+        Mode_Reduction -> java.io.FileWriter(java.io.File(evaluationFolder, "Reduction.csv")),
+        Mode_None_0_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_0_32.csv")),
+        Mode_None_1_8 -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_1_8.csv")),
+        Mode_None_1_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_1_32.csv")),
+        Mode_None_2_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_2_32.csv")),
+        Mode_None_INF_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_INF_32.csv")),
+        Mode_None_INF_INF -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_INF_INF.csv")),
+        Mode_Fast_0_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_0_32.csv")),
+        Mode_Fast_1_8 -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_1_8.csv")),
+        Mode_Fast_1_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_1_32.csv")),
+        Mode_Fast_2_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_2_32.csv")),
+        Mode_Fast_INF_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_INF_32.csv")),
+        Mode_Fast_INF_INF -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_INF_INF.csv")),
+        Mode_Canonical_0_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_0_32.csv")),
+        Mode_Canonical_1_8 -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_1_8.csv")),
+        Mode_Canonical_1_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_1_32.csv")),
+        Mode_Canonical_2_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_2_32.csv")),
+        Mode_Canonical_INF_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_INF_32.csv")),
+        Mode_Canonical_INF_INF -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_INF_INF.csv"))
       )
     val writerSuccess =
       Map[Mode, java.io.FileWriter](
-        Mode.Reduction -> java.io.FileWriter(java.io.File(evaluationFolder, "Reduction_Success.csv")),
-        Mode.NoDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_Success.csv")),
-        Mode.FastDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_Success.csv")),
-        Mode.CanonicalDisjointnessAxioms -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_Success.csv"))
+        Mode_Reduction -> java.io.FileWriter(java.io.File(evaluationFolder, "Reduction_Success.csv")),
+        Mode_None_0_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_0_32_Success.csv")),
+        Mode_None_1_8 -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_1_8_Success.csv")),
+        Mode_None_1_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_1_32_Success.csv")),
+        Mode_None_2_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_2_32_Success.csv")),
+        Mode_None_INF_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_INF_32_Success.csv")),
+        Mode_None_INF_INF -> java.io.FileWriter(java.io.File(evaluationFolder, "NoDisjAx_INF_INF_Success.csv")),
+        Mode_Fast_0_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_0_32_Success.csv")),
+        Mode_Fast_1_8 -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_1_8_Success.csv")),
+        Mode_Fast_1_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_1_32_Success.csv")),
+        Mode_Fast_2_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_2_32_Success.csv")),
+        Mode_Fast_INF_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_INF_32_Success.csv")),
+        Mode_Fast_INF_INF -> java.io.FileWriter(java.io.File(evaluationFolder, "FastDisjAx_INF_INF_Success.csv")),
+        Mode_Canonical_0_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_0_32_Success.csv")),
+        Mode_Canonical_1_8 -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_1_8_Success.csv")),
+        Mode_Canonical_1_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_1_32_Success.csv")),
+        Mode_Canonical_2_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_2_32_Success.csv")),
+        Mode_Canonical_INF_32 -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_INF_32_Success.csv")),
+        Mode_Canonical_INF_INF -> java.io.FileWriter(java.io.File(evaluationFolder, "CanDisjAx_INF_INF_Success.csv"))
       )
 //    val writerSuccessFewerThanTen =
 //      Map[Mode, java.io.FileWriter](
@@ -523,19 +684,23 @@ object Evaluation {
     var success = 0
     var timeout = 0
     var outOfMemory = 0
+    var inconsistent = 0
+    var poweringTooLarge = 0
     var error = 0
     while (it.hasNext) {
       val ont -> results = it.next()
       number += 1
       if (getInputStatistics(ont).Flag_Acyclic)
         acyclic += 1
-      val maybeResult = results.find(_.mode equals Mode.Reduction)
+      val maybeResult = results.find(_.mode equals Mode_Reduction)
       if (maybeResult.isDefined) {
         val result = maybeResult.get
         result.status match {
           case Success() => success += 1
           case Timeout(_) => timeout += 1
           case OutOfMemory(_) => outOfMemory += 1
+          case Inconsistent() => inconsistent += 1
+          case PoweringTooLarge() => poweringTooLarge += 1
           case Error(_) => error += 1
           case _ => throw MatchError(result.status)
         }
@@ -547,6 +712,8 @@ object Evaluation {
     val percentageSuccess = (success.toFloat / number.toFloat) * 100
     val percentageTimeout = (timeout.toFloat / number.toFloat) * 100
     val percentageOutOfMemory = (outOfMemory.toFloat / number.toFloat) * 100
+    val percentageInconsistent = (inconsistent.toFloat / number.toFloat) * 100
+    val percentagePoweringTooLarge = (poweringTooLarge.toFloat / number.toFloat) * 100
     val percentageError = (error.toFloat / number.toFloat) * 100
     reductionTableWriter.write(s"\\newcommand{\\ReductionNumberOfDatasets}{$number}\n")
     reductionTableWriter.write(f"\\newcommand{\\ReductionSuccessNumber}{$success}\n")
@@ -555,6 +722,10 @@ object Evaluation {
     reductionTableWriter.write(f"\\newcommand{\\ReductionTimeoutPercentage}{$percentageTimeout%1.2f\\,\\%%}\n")
     reductionTableWriter.write(f"\\newcommand{\\ReductionOutOfMemoryNumber}{$outOfMemory}\n")
     reductionTableWriter.write(f"\\newcommand{\\ReductionOutOfMemoryPercentage}{$percentageOutOfMemory%1.2f\\,\\%%}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionInconsistentNumber}{$inconsistent}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionInconsistentPercentage}{$percentageInconsistent%1.2f\\,\\%%}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionPoweringTooLargeNumber}{$poweringTooLarge}\n")
+    reductionTableWriter.write(f"\\newcommand{\\ReductionPoweringTooLargePercentage}{$percentagePoweringTooLarge%1.2f\\,\\%%}\n")
     reductionTableWriter.write(f"\\newcommand{\\ReductionOtherErrorNumber}{$error}\n")
     reductionTableWriter.write(f"\\newcommand{\\ReductionOtherErrorPercentage}{$percentageError%1.2f\\,\\%%}\n")
     reductionTableWriter.write(f"\\newcommand{\\ReductionAcyclicNumber}{$acyclic}\n")
@@ -564,7 +735,7 @@ object Evaluation {
 
   def main(args: Array[String]): Unit = {
     readAdditionalReductionStatistics()
-    computeIrreducibles()
+//    computeIrreducibles()
     readResults()
     filterResults()
     writeEvaluationData()
