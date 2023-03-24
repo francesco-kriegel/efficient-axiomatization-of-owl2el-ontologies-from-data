@@ -641,8 +641,12 @@ object Axiomatization {
     logger.println("Enumerating background implications...")
     val _backgroundImplications = ConcurrentLinkedQueue[BitImplication]()
 
-    if (withDisjointnessAxioms)
-      _backgroundImplications.add(BitSet(0) -> BitSet.fromSpecific(1 until extendedAttributeSet.length))
+//    if (withDisjointnessAxioms)
+//      _backgroundImplications.add(BitSet(0) -> BitSet.fromSpecific(1 until extendedAttributeSet.length))
+//      logger.tick()
+    val indexOfOWLNothing = extendedAttributeSet.indexOf(OWLNothing)
+    if indexOfOWLNothing > -1 then
+      _backgroundImplications.add(BitSet(indexOfOWLNothing) -> BitSet.fromSpecific(extendedAttributeSet.indices))
       logger.tick()
 
     extendedAttributeSet.foreachPar({
@@ -684,42 +688,82 @@ object Axiomatization {
       case _ => {}
     })
 
-    elk.reasoner.dispose()
-
     // (3)  Conj(C) → Conj(D)  if  C⊑D ∈ 𝓣
     elTBox.foreach({
       case SubClassOf(_, premise, conclusion) => {
+//        val p = premise.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x : (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
+//        val c = conclusion.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x: (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
+//        if (c.nonEmpty)
+//          _backgroundImplications.add(p -> c)
+//          logger.tick()
+//        if !(c contains indexOfOWLNothing) && (elk.subsumers(conclusion) contains OWLNothing) then
+//          _backgroundImplications.add(c -> BitSet(indexOfOWLNothing))
+//          logger.tick()
         val p = premise.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x : (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
-        val c = conclusion.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x : (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
-        if (c.nonEmpty)
-          _backgroundImplications.add(p -> c)
+        if elk.subsumers(elk.representativeOf(conclusion)) contains OWLNothing then
+          _backgroundImplications.add(p -> BitSet(indexOfOWLNothing))
           logger.tick()
+        else
+          val c = conclusion.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x: (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
+          if c.nonEmpty then
+            _backgroundImplications.add(p -> c)
+            logger.tick()
       }
       case ObjectPropertyDomain(_, property@ObjectProperty(_), conclusion) => {
+//        val p = BitSet(extendedAttributeIndex(ObjectSomeValuesFrom(property, OWLThing)))
+//        val c = conclusion.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x: (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
+//        if (c.nonEmpty)
+//          _backgroundImplications.add(p -> c)
+//          logger.tick()
+//        if !(c contains indexOfOWLNothing) && (elk.subsumers(conclusion) contains OWLNothing) then
+//          _backgroundImplications.add(c -> BitSet(indexOfOWLNothing))
+//          logger.tick()
         val p = BitSet(extendedAttributeIndex(ObjectSomeValuesFrom(property, OWLThing)))
-        val c = conclusion.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x: (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
-        if (c.nonEmpty)
-          _backgroundImplications.add(p -> c)
+        if elk.subsumers(elk.representativeOf(conclusion)) contains OWLNothing then
+          _backgroundImplications.add(p -> BitSet(indexOfOWLNothing))
           logger.tick()
+        else
+          val c = conclusion.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x: (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
+          if c.nonEmpty then
+            _backgroundImplications.add(p -> c)
+            logger.tick()
       }
       case EquivalentClasses(_, operands) => {
         val n = operands.size
-        val ps = new Array[BitSet](n)
-        var i = 0
-        operands.foreach(op => {
-          ps(i) = op.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x : (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
-          i += 1
-        })
-        (0 until (n-2)).foreach(j => {
-          if (ps(j+1).nonEmpty)
-            _backgroundImplications.add(ps(j) -> ps(j+1))
-            logger.tick()
-        })
-        if (ps(0).nonEmpty)
-          _backgroundImplications.add(ps(n-1) -> ps(0))
-          logger.tick()
+        if (n > 0) {
+          val ps = new Array[BitSet](n)
+          var i = 0
+          operands.foreach(op => {
+            ps(i) = op.conjunctSet().toScala(LazyList).filter(!_.isOWLThing).map({ case x : (OWLClass | OWLObjectSomeValuesFrom) => extendedAttributeIndex(x) }).to(BitSet)
+            i += 1
+          })
+//        (0 until (n-2)).foreach(j => {
+//          if (ps(j+1).nonEmpty)
+//            _backgroundImplications.add(ps(j) -> ps(j+1))
+//            logger.tick()
+//        })
+//        if (ps(0).nonEmpty)
+//          _backgroundImplications.add(ps(n-1) -> ps(0))
+//          logger.tick()
+          if elk.subsumers(elk.representativeOf(operands.head)) contains OWLNothing then
+            (0 until n).foreach(j => {
+              _backgroundImplications.add(ps(j) -> BitSet(indexOfOWLNothing))
+              logger.tick()
+            })
+          else
+            (0 until (n-1)).foreach(j => {
+              if (ps(j+1).nonEmpty)
+                _backgroundImplications.add(ps(j) -> ps(j+1))
+                logger.tick()
+            })
+            if (ps(0).nonEmpty)
+              _backgroundImplications.add(ps(n-1) -> ps(0))
+              logger.tick()
+        }
       }
     })
+
+    elk.reasoner.dispose()
 
 
     val backgroundImplications = mutable.HashSet[BitImplication]()

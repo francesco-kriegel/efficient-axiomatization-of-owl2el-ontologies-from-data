@@ -69,12 +69,18 @@ class ELK(val reduction: BitGraph[OWLClass, OWLObjectProperty], val elTBox: List
       //        })
       collectSubClassExpressions(premise)
       collectSubClassExpressions(classExpression)
+      if !classExpression.isOWLClass then addRepresentative(classExpression)
     case ObjectPropertyDomain(_, property@ObjectProperty(_), classExpression) =>
       // TODO: Is this needed?
       collectSubClassExpressions(ObjectSomeValuesFrom(property, OWLThing))
       collectSubClassExpressions(classExpression)
+      if !classExpression.isOWLClass then addRepresentative(classExpression)
     case EquivalentClasses(_, classExpressions) =>
-      classExpressions.foreach(collectSubClassExpressions(_))
+//      classExpressions.foreach(collectSubClassExpressions(_))
+      classExpressions.foreach(classExpression =>
+        collectSubClassExpressions(classExpression)
+        if !classExpression.isOWLClass then addRepresentative(classExpression)
+      )
   })
 
   val individualFor = new Array[OWLNamedIndividual](reduction.nodes().size)
