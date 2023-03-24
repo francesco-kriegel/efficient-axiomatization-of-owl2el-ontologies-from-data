@@ -86,7 +86,7 @@ object Evaluation {
     Mode_Canonical_0_32, Mode_Canonical_1_8, Mode_Canonical_1_32, Mode_Canonical_2_32, Mode_Canonical_INF_32, Mode_Canonical_INF_INF
   )
 
-  private val Mode_parents = collection.immutable.Map(
+  private val Mode_parents_first = collection.immutable.Map(
     Mode_Reduction -> collection.immutable.List(),
 
     Mode_None_0_32 -> collection.immutable.List(),
@@ -110,6 +110,89 @@ object Evaluation {
     Mode_Canonical_INF_32 -> collection.immutable.List(Mode_Fast_INF_32, Mode_Canonical_2_32),
     Mode_Canonical_INF_INF -> collection.immutable.List(Mode_Fast_INF_INF, Mode_Canonical_INF_32)
   )
+
+  private val Mode_parents_second = collection.immutable.Map(
+    Mode_Reduction -> collection.immutable.List(),
+
+    Mode_None_0_32 -> collection.immutable.List(),
+    Mode_None_1_8 -> collection.immutable.List(),
+    Mode_None_1_32 -> collection.immutable.List(Mode_None_1_8, Mode_None_0_32),
+    Mode_None_2_32 -> collection.immutable.List(Mode_None_1_32),
+    Mode_None_INF_32 -> collection.immutable.List(Mode_None_2_32),
+    Mode_None_INF_INF -> collection.immutable.List(Mode_None_INF_32),
+
+    Mode_Fast_0_32 -> collection.immutable.List(Mode_None_0_32),
+    Mode_Fast_1_8 -> collection.immutable.List(Mode_None_1_8),
+    Mode_Fast_1_32 -> collection.immutable.List(Mode_None_1_32, Mode_Fast_0_32, Mode_Fast_1_8),
+    Mode_Fast_2_32 -> collection.immutable.List(Mode_None_2_32, Mode_Fast_1_32),
+    Mode_Fast_INF_32 -> collection.immutable.List(Mode_None_INF_32, Mode_Fast_2_32),
+    Mode_Fast_INF_INF -> collection.immutable.List(Mode_None_INF_INF, Mode_Fast_INF_32),
+
+    Mode_Canonical_0_32 -> collection.immutable.List(Mode_Fast_0_32),
+    Mode_Canonical_1_8 -> collection.immutable.List(Mode_Fast_1_8),
+    Mode_Canonical_1_32 -> collection.immutable.List(Mode_Fast_1_32, Mode_Canonical_0_32, Mode_Canonical_1_8),
+    Mode_Canonical_2_32 -> collection.immutable.List(Mode_Fast_2_32, Mode_Canonical_1_32),
+    Mode_Canonical_INF_32 -> collection.immutable.List(Mode_Fast_INF_32, Mode_Canonical_2_32),
+    Mode_Canonical_INF_INF -> collection.immutable.List(Mode_Fast_INF_INF, Mode_Canonical_INF_32)
+  )
+
+  private val firstExperiments = collection.immutable.Set(443,
+                                                          1117,
+                                                          1370,
+                                                          1767,
+                                                          1833,
+                                                          2253,
+                                                          2719,
+                                                          3313,
+                                                          3737,
+                                                          4033,
+                                                          4242,
+                                                          4410,
+                                                          4557,
+                                                          4572,
+                                                          4639,
+                                                          5241,
+                                                          5324,
+                                                          5544,
+                                                          5602,
+                                                          5755,
+                                                          5841,
+                                                          6233,
+                                                          6443,
+                                                          6478,
+                                                          7389,
+                                                          7680,
+                                                          7858,
+                                                          9386,
+                                                          9792,
+                                                          10750,
+                                                          11085,
+                                                          11287,
+                                                          11464,
+                                                          11597,
+                                                          11703,
+                                                          12097,
+                                                          12182,
+                                                          12932,
+                                                          13106,
+                                                          13336,
+                                                          13413,
+                                                          13690,
+                                                          13919,
+                                                          13949,
+                                                          14909,
+                                                          15280,
+                                                          15288,
+                                                          15791,
+                                                          15921,
+                                                          16105,
+                                                          16509,
+                                                          16853)
+
+  private def Mode_parents(ont: Int) =
+    if firstExperiments contains ont
+    then Mode_parents_first
+    else Mode_parents_second
 
   private sealed abstract class Status {
     override def toString: String = this match {
@@ -578,8 +661,8 @@ object Evaluation {
 //          throw RuntimeException()
 
         def findFailedAncestor(mode: Mode): Option[Result] = {
-          Mode_parents(mode).map(bestResultFor).filter(_.isDefined).map(_.get).find(_.status != Success())
-            .orElse(Mode_parents(mode).map(findFailedAncestor).find(_.isDefined).getOrElse(None))
+          Mode_parents(ont)(mode).map(bestResultFor).filter(_.isDefined).map(_.get).find(_.status != Success())
+            .orElse(Mode_parents(ont)(mode).map(findFailedAncestor).find(_.isDefined).getOrElse(None))
         }
 
         Mode_values.foreach(mode => {
