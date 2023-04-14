@@ -1997,7 +1997,7 @@ for key in "${ontologies[@]}"; do
 
     lastDomainSize=${domainSize[$key]}
 
-    if [[ ! -f "ore2015_pool_sample_experiments/results/${key}.csv" ]] || [[ ! -f "ore2015_pool_sample_experiments/files/${key}_reduced.owl" ]]; then
+    if [[ ! -f "ore2015_pool_sample_experiments/results/${key}.csv" ]]; then
 
       echo ""
       echo "Processing $key with ${domainSize[$key]} objects..."
@@ -2026,7 +2026,7 @@ for key in "${ontologies[@]}"; do
             skipRunPrototype "Fast" "0" "32"
           fi
 
-          if [[ ${exitStatus_None_0_32} -eq 0 ]]; then
+          if [[ ${exitStatus_Fast_0_32} -eq 0 ]]; then
             runPrototype "Canonical" "0" "32"
             exitStatus_Canonical_0_32=${exitStatus}
           else
