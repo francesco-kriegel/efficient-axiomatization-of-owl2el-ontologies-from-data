@@ -93,6 +93,14 @@ class PoweringSimulator(val source: BitGraph[OWLClass, OWLObjectProperty],
             val relations = xs.unsorted.tail.foldLeft(source.successorRelations(xs.head))(_ intersect source.successorRelations(_))
             relations.foreach(r => {
               val hypergraph: collection.Set[collection.BitSet] = xs.unsorted.map(x => source.successorsForRelation(x, r))
+              // TODO: ******************************************************************************************************************************
+              // TODO: First compute the intersection of 'hypergraph' to get the singleton hitting sets
+              // TODO: Then remove the elements in the intersection from each set in the hypergraph
+              // TODO: This might be iterated for a better approximation in method 'isTooLarge'.
+              // TODO:
+              // TODO: Moreover, if the value 'maxConjunctionSize.get' is small, then one could also dispense with the approximation
+              // TODO: and start to walk though the (lazy) iterator provided by 'HSdagBitsPar'---when the bound is exceeded, the exception is thrown.
+              // TODO: ******************************************************************************************************************************
               if (maxConjunctionSize.isDefined && isTooLarge(hypergraph, maxConjunctionSize.get - labels.size)) {
                 throw PoweringTooLargeException("An object in the powering could have more than " + maxConjunctionSize.get + " labels or successors.  Hypergraph: " + hypergraph.tail.foldLeft(hypergraph.head.size + "")(_ + " x " + _.size))
               } else {
