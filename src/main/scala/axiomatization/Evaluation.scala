@@ -673,7 +673,8 @@ object Evaluation {
             if failure.isDefined
             then results.addOne(Result("ore_ont_" + ont + ";" + mode + ";" + statusToString(failure.get.mode)))
             else
-              if (bestResultFor(Mode_Reduction).get.status == Success() && bestResultFor(Mode_Reduction).get.Number_ObjectsInReducedDomain.get >= 10)
+              // if (bestResultFor(Mode_Reduction).get.status == Success() && bestResultFor(Mode_Reduction).get.Number_ObjectsInReducedDomain.get >= 10)
+              if (bestResultFor(Mode_Reduction).get.status == Success() && bestResultFor(Mode_None_0_32).isDefined)
               throw RuntimeException("No result for " + mode)
           }
         })
@@ -760,6 +761,7 @@ object Evaluation {
     })
     writer.values.foreach(_.close())
     writerSuccess.values.foreach(_.close())
+
     val reductionTableWriter = java.io.FileWriter(java.io.File(evaluationFolder, "ReductionStatistics.tex"))
     val it = resultsMap.iterator
     var number = 0
@@ -770,16 +772,25 @@ object Evaluation {
     var inconsistent = 0
     var poweringTooLarge = 0
     var error = 0
+    var minTriplesPerObjectOnAverageBeforeReduction = Float.MaxValue
+    var minTriplesPerObjectOnAverageAfterReduction = Float.MaxValue
+    var maxTriplesPerObjectOnAverageBeforeReduction = 0f
+    var maxTriplesPerObjectOnAverageAfterReduction = 0f
     while (it.hasNext) {
       val ont -> results = it.next()
       number += 1
       if (getInputStatistics(ont).Flag_Acyclic)
         acyclic += 1
+      minTriplesPerObjectOnAverageBeforeReduction = minTriplesPerObjectOnAverageBeforeReduction min getInputStatistics(ont).Number_TriplesPerObjectOnAverage
+      maxTriplesPerObjectOnAverageBeforeReduction = maxTriplesPerObjectOnAverageBeforeReduction max getInputStatistics(ont).Number_TriplesPerObjectOnAverage
       val maybeResult = results.find(_.mode equals Mode_Reduction)
       if (maybeResult.isDefined) {
         val result = maybeResult.get
         result.status match {
-          case Success() => success += 1
+          case Success() =>
+            success += 1
+            minTriplesPerObjectOnAverageAfterReduction = minTriplesPerObjectOnAverageAfterReduction min result.Number_TriplesPerObjectOnAverageInReduction.get
+            maxTriplesPerObjectOnAverageAfterReduction = maxTriplesPerObjectOnAverageAfterReduction max result.Number_TriplesPerObjectOnAverageInReduction.get
           case Timeout(_) => timeout += 1
           case OutOfMemory(_) => outOfMemory += 1
           case Inconsistent() => inconsistent += 1
@@ -813,7 +824,126 @@ object Evaluation {
     reductionTableWriter.write(f"\\newcommand{\\ReductionOtherErrorPercentage}{$percentageError%1.2f\\,\\%%}\n")
     reductionTableWriter.write(f"\\newcommand{\\ReductionAcyclicNumber}{$acyclic}\n")
     reductionTableWriter.write(f"\\newcommand{\\ReductionAcyclicPercentage}{$percentageAcyclic%1.2f\\,\\%%}\n")
+    reductionTableWriter.write(f"\\newcommand{\\MinTriplesPerObjectOnAverageBeforeReduction}{$minTriplesPerObjectOnAverageBeforeReduction%1.2f}\n")
+    reductionTableWriter.write(f"\\newcommand{\\MaxTriplesPerObjectOnAverageBeforeReduction}{$maxTriplesPerObjectOnAverageBeforeReduction%1.2f}\n")
+    reductionTableWriter.write(f"\\newcommand{\\MinTriplesPerObjectOnAverageAfterReduction}{$minTriplesPerObjectOnAverageAfterReduction%1.2f}\n")
+    reductionTableWriter.write(f"\\newcommand{\\MaxTriplesPerObjectOnAverageAfterReduction}{$maxTriplesPerObjectOnAverageAfterReduction%1.2f}\n")
     reductionTableWriter.close()
+
+    val axiomatizationTableWriter = java.io.FileWriter(java.io.File(evaluationFolder, "AxiomatizationStatistics.tex"))
+    val latexName = Map[Mode, String](
+      Mode_None_0_32 -> "None\\,(0,32)",
+      Mode_Fast_0_32 -> "Fast\\,(0,32)",
+      Mode_Canonical_0_32 -> "Can.\\,(0,32)",
+      Mode_None_1_8 -> "None\\,(1,8)",
+      Mode_Fast_1_8 -> "Fast\\,(1,8)",
+      Mode_Canonical_1_8 -> "Can.\\,(1,8)",
+      Mode_None_1_32 -> "None\\,(1,32)",
+      Mode_Fast_1_32 -> "Fast\\,(1,32)",
+      Mode_Canonical_1_32 -> "Can.\\,(1,32)",
+      Mode_None_2_32 -> "None\\,(2,32)",
+      Mode_Fast_2_32 -> "Fast\\,(2,32)",
+      Mode_Canonical_2_32 -> "Can.\\,(2,32)",
+      Mode_None_INF_32 -> "None\\,($\\infty$,32)",
+      Mode_Fast_INF_32 -> "Fast\\,($\\infty$,32)",
+      Mode_Canonical_INF_32 -> "Can.\\,($\\infty$,32)",
+      Mode_None_INF_INF -> "None\\,($\\infty$,$\\infty$)",
+      Mode_Fast_INF_INF -> "Fast\\,($\\infty$,$\\infty$)",
+      Mode_Canonical_INF_INF -> "Can.\\,($\\infty$,$\\infty$)"
+    )
+    val jt = resultsMap.iterator
+    val totalNumberMap = collection.mutable.HashMap[(Mode, Int), Int]()
+    val successNumberMap = collection.mutable.HashMap[(Mode, Int), Int]()
+    val timeoutNumberMap = collection.mutable.HashMap[(Mode, Int), Int]()
+    val outOfMemoryNumberMap = collection.mutable.HashMap[(Mode, Int), Int]()
+    val poweringTooLargeNumberMap = collection.mutable.HashMap[(Mode, Int), Int]()
+    val otherErrorNumberMap = collection.mutable.HashMap[(Mode, Int), Int]()
+//    Mode_values foreach { mode =>
+//      if mode != Mode_Reduction then
+//        (1 to 4) foreach { n =>
+//          totalNumberMap((mode, n)) = 0
+//          successNumberMap((mode, n)) = 0
+//          timeoutNumberMap((mode, n)) = 0
+//          outOfMemoryNumberMap((mode, n)) = 0
+//          poweringTooLargeNumberMap((mode, n)) = 0
+//          otherErrorNumberMap((mode, n)) = 0
+//        }
+//    }
+    for
+      mode <- Mode_values if mode != Mode_Reduction
+      n <- 1 to 4
+    do
+      totalNumberMap((mode, n)) = 0
+      successNumberMap((mode, n)) = 0
+      timeoutNumberMap((mode, n)) = 0
+      outOfMemoryNumberMap((mode, n)) = 0
+      poweringTooLargeNumberMap((mode, n)) = 0
+      otherErrorNumberMap((mode, n)) = 0
+    while (jt.hasNext) {
+      val ont -> results = jt.next()
+      if results.exists(_.mode == Mode_None_0_32) then
+        for
+          result <- results if result.mode != Mode_Reduction
+        do
+          val mode = result.mode
+          val n = scala.math.log10(result.Number_ObjectsInReducedDomain.get).toInt min 4
+          totalNumberMap((mode, n)) += 1
+          result.status match
+            case Success() => successNumberMap((mode, n)) += 1
+            case Timeout(_) => timeoutNumberMap((mode, n)) += 1
+            case OutOfMemory(_) => outOfMemoryNumberMap((mode, n)) += 1
+//            case Inconsistent() =>
+            case PoweringTooLarge() => poweringTooLargeNumberMap((mode, n)) += 1
+            case Error(_) => otherErrorNumberMap((mode, n)) += 1
+            case _ => throw MatchError(result.status)
+    }
+
+    axiomatizationTableWriter.write("\\newcommand{\\successRates}{\n")
+    for mode <- Mode_values if mode != Mode_Reduction do
+      axiomatizationTableWriter.write(latexName(mode))
+      for n <- 1 to 4 do
+        val successRate = (successNumberMap((mode, n)).toFloat / totalNumberMap((mode, n)).toFloat) * 100
+        axiomatizationTableWriter.write("&" + f"$successRate%1.2f\\,\\%%")
+      axiomatizationTableWriter.write("\\\\\\hline\n")
+    axiomatizationTableWriter.write("}\n")
+
+    axiomatizationTableWriter.write("\\newcommand{\\timeoutRates}{\n")
+    for mode <- Mode_values if mode != Mode_Reduction do
+      axiomatizationTableWriter.write(latexName(mode))
+      for n <- 1 to 4 do
+        val timeoutRate = (timeoutNumberMap((mode, n)).toFloat / totalNumberMap((mode, n)).toFloat) * 100
+        axiomatizationTableWriter.write("&" + f"$timeoutRate%1.2f\\,\\%%")
+      axiomatizationTableWriter.write("\\\\\\hline\n")
+    axiomatizationTableWriter.write("}\n")
+
+    axiomatizationTableWriter.write("\\newcommand{\\outOfMemoryRates}{\n")
+    for mode <- Mode_values if mode != Mode_Reduction do
+      axiomatizationTableWriter.write(latexName(mode))
+      for n <- 1 to 4 do
+        val outOfMemoryRate = (outOfMemoryNumberMap((mode, n)).toFloat / totalNumberMap((mode, n)).toFloat) * 100
+        axiomatizationTableWriter.write("&" + f"$outOfMemoryRate%1.2f\\,\\%%")
+      axiomatizationTableWriter.write("\\\\\\hline\n")
+    axiomatizationTableWriter.write("}\n")
+
+    axiomatizationTableWriter.write("\\newcommand{\\poweringTooLargeRates}{\n")
+    for mode <- Mode_values if mode != Mode_Reduction do
+      axiomatizationTableWriter.write(latexName(mode))
+      for n <- 1 to 4 do
+        val poweringTooLargeRate = (poweringTooLargeNumberMap((mode, n)).toFloat / totalNumberMap((mode, n)).toFloat) * 100
+        axiomatizationTableWriter.write("&" + f"$poweringTooLargeRate%1.2f\\,\\%%")
+      axiomatizationTableWriter.write("\\\\\\hline\n")
+    axiomatizationTableWriter.write("}\n")
+
+    axiomatizationTableWriter.write("\\newcommand{\\otherErrorRates}{\n")
+    for mode <- Mode_values if mode != Mode_Reduction do
+      axiomatizationTableWriter.write(latexName(mode))
+      for n <- 1 to 4 do
+        val otherErrorRate = (otherErrorNumberMap((mode, n)).toFloat / totalNumberMap((mode, n)).toFloat) * 100
+        axiomatizationTableWriter.write("&" + f"$otherErrorRate%1.2f\\,\\%%")
+      axiomatizationTableWriter.write("\\\\\\hline\n")
+    axiomatizationTableWriter.write("}\n")
+
+    axiomatizationTableWriter.close()
   }
 
   def main(args: Array[String]): Unit = {
