@@ -4,7 +4,6 @@ package axiomatization
 import axiomatization.InducedFormalContext
 import axiomatization.Util.measureExecutionTime
 
-import org.checkerframework.checker.units.qual.A
 import org.semanticweb.owlapi.model.{OWLClass, OWLObjectProperty, OWLObjectSomeValuesFrom}
 
 import java.io.{BufferedReader, File, FileReader}
